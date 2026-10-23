@@ -4,7 +4,7 @@ const Member = require("../models/Member");
 
 const createMember = async (req, res) => {
   try {
-    const { name, dob, phoneNumber, baptismDate } = req.body;
+    const { name, dob, phoneNumber, baptismDate, marriageDate } = req.body;
 
     if (typeof name !== "string" || !name.trim()) {
       return res.status(400).json({
@@ -19,6 +19,7 @@ const createMember = async (req, res) => {
       phoneNumber:
         typeof phoneNumber === "string" ? phoneNumber.trim() : "",
       baptismDate: parseOptionalDate(baptismDate),
+      marriageDate: parseMarriageDate(marriageDate),
     });
 
     return res.status(201).json({
@@ -27,7 +28,12 @@ const createMember = async (req, res) => {
       member,
     });
   } catch (error) {
-    if (error instanceof TypeError && error.message.startsWith("Invalid date")) {
+    if (
+      error instanceof TypeError &&
+      /^(Invalid date|Invalid marriage date|Marriage date cannot)/.test(
+        error.message
+      )
+    ) {
       return res.status(400).json({
         success: false,
         message: error.message,
@@ -52,6 +58,53 @@ const parseOptionalDate = (value) => {
 
   if (Number.isNaN(date.getTime())) {
     throw new TypeError("Invalid date. Please provide a valid date.");
+  }
+
+  return date;
+};
+
+const parseMarriageDate = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))?$/.test(
+      value
+    )
+  ) {
+    throw new TypeError(
+      "Invalid marriage date. Please provide a valid ISO 8601 date."
+    );
+  }
+
+  const date = new Date(value);
+  const datePart = value.slice(0, 10);
+  const [year, month, day] = datePart.split("-").map(Number);
+  const calendarDate = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    Number.isNaN(date.getTime()) ||
+    calendarDate.getUTCFullYear() !== year ||
+    calendarDate.getUTCMonth() !== month - 1 ||
+    calendarDate.getUTCDate() !== day
+  ) {
+    throw new TypeError(
+      "Invalid marriage date. Please provide a valid ISO 8601 date."
+    );
+  }
+
+  const now = new Date();
+  const selectedDay = Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate()
+  );
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+
+  if (selectedDay > today) {
+    throw new TypeError("Marriage date cannot be in the future.");
   }
 
   return date;
@@ -117,7 +170,13 @@ const updateMember = async (req, res) => {
       });
     }
 
-    const allowedFields = ["name", "dob", "phoneNumber", "baptismDate"];
+    const allowedFields = [
+      "name",
+      "dob",
+      "phoneNumber",
+      "baptismDate",
+      "marriageDate",
+    ];
     const updates = {};
 
     for (const field of allowedFields) {
@@ -140,6 +199,8 @@ const updateMember = async (req, res) => {
           }
 
           updates.phoneNumber = req.body.phoneNumber.trim();
+        } else if (field === "marriageDate") {
+          updates.marriageDate = parseMarriageDate(req.body.marriageDate);
         } else {
           updates[field] = parseOptionalDate(req.body[field]);
         }
@@ -172,7 +233,12 @@ const updateMember = async (req, res) => {
       member,
     });
   } catch (error) {
-    if (error instanceof TypeError && error.message.startsWith("Invalid date")) {
+    if (
+      error instanceof TypeError &&
+      /^(Invalid date|Invalid marriage date|Marriage date cannot)/.test(
+        error.message
+      )
+    ) {
       return res.status(400).json({
         success: false,
         message: error.message,
@@ -226,4 +292,5 @@ module.exports = {
   getMemberById,
   updateMember,
   deleteMember,
+  parseMarriageDate,
 };

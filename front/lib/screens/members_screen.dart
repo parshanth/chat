@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../models/member.dart';
 import '../services/member_service.dart';
 
 // ---------------------------------------------------------------------------
@@ -150,7 +151,7 @@ class _MembersScreenState extends State<MembersScreen> {
   final MemberService _service = MemberService();
   final TextEditingController _searchController = TextEditingController();
 
-  List<Map<String, dynamic>> _members = [];
+  List<Member> _members = [];
   bool _loading = true;
   String? _error;
   String _search = '';
@@ -193,39 +194,46 @@ class _MembersScreenState extends State<MembersScreen> {
     }
   }
 
-  List<Map<String, dynamic>> get _filteredMembers {
+  List<Member> get _filteredMembers {
     if (_search.isEmpty) return _members;
 
     return _members.where((member) {
-      final name = (member['name'] ?? '').toString().toLowerCase();
-      final phone = (member['phoneNumber'] ?? '').toString().toLowerCase();
+      final name = member.name.toLowerCase();
+      final phone = member.phoneNumber.toLowerCase();
 
       return name.contains(_search) || phone.contains(_search);
     }).toList();
   }
 
-  DateTime? _parseDate(dynamic value) {
-    if (value == null || value.toString().isEmpty) return null;
-    return DateTime.tryParse(value.toString());
-  }
-
-  String _formatDate(dynamic value) {
-    final date = _parseDate(value);
+  String _formatDate(DateTime? date) {
     if (date == null) return 'Not provided';
 
-    return '${date.day.toString().padLeft(2, '0')}/'
-        '${date.month.toString().padLeft(2, '0')}/${date.year}';
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   int get _baptisedCount =>
-      _members.where((m) => _parseDate(m['baptismDate']) != null).length;
+      _members.where((member) => member.baptismDate != null).length;
 
   int get _birthdaysThisMonth {
     final month = DateTime.now().month;
-    return _members.where((m) => _parseDate(m['dob'])?.month == month).length;
+    return _members.where((member) => member.dob?.month == month).length;
   }
 
-  Future<void> _openMemberForm({Map<String, dynamic>? member}) async {
+  Future<void> _openMemberForm({Member? member}) async {
     final saved = await showDialog<bool>(
       context: context,
       builder: (_) => _MemberFormDialog(
@@ -239,7 +247,7 @@ class _MembersScreenState extends State<MembersScreen> {
     }
   }
 
-  Future<void> _deleteMember(Map<String, dynamic> member) async {
+  Future<void> _deleteMember(Member member) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -251,7 +259,7 @@ class _MembersScreenState extends State<MembersScreen> {
         ),
         title: Text('Delete member?', style: _display(22)),
         content: Text(
-          'Are you sure you want to delete ${member['name']}? '
+          'Are you sure you want to delete ${member.name}? '
           'This cannot be undone.',
           style: _body(15),
         ),
@@ -275,7 +283,7 @@ class _MembersScreenState extends State<MembersScreen> {
     if (confirmed != true || !mounted) return;
 
     try {
-      await _service.deleteMember(member['_id'].toString());
+      await _service.deleteMember(member.id);
       if (!mounted) return;
 
       _snack(context, 'Member deleted successfully.');
@@ -441,7 +449,7 @@ class _MembersScreenState extends State<MembersScreen> {
     );
   }
 
-  Widget _buildDirectoryHeader(List<Map<String, dynamic>> members) {
+  Widget _buildDirectoryHeader(List<Member> members) {
     final filtering = _search.isNotEmpty;
 
     return Padding(
@@ -466,10 +474,11 @@ class _MembersScreenState extends State<MembersScreen> {
     );
   }
 
-  Widget _buildMemberRow(Map<String, dynamic> member, {required bool isLast}) {
-    final name = (member['name'] ?? '').toString();
-    final phone = (member['phoneNumber'] ?? '').toString();
-    final baptised = _parseDate(member['baptismDate']) != null;
+  Widget _buildMemberRow(Member member, {required bool isLast}) {
+    final name = member.name;
+    final phone = member.phoneNumber;
+    final baptised = member.baptismDate != null;
+    final married = member.marriageDate != null;
 
     return InkWell(
       onTap: () => _openMemberForm(member: member),
@@ -542,12 +551,18 @@ class _MembersScreenState extends State<MembersScreen> {
                     children: [
                       _MetaPair(
                         label: 'DOB',
-                        value: _formatDate(member['dob']),
+                        value: _formatDate(member.dob),
                       ),
                       if (baptised)
                         _MetaPair(
                           label: 'BAPTISED',
-                          value: _formatDate(member['baptismDate']),
+                          value: _formatDate(member.baptismDate),
+                          labelColor: _C.accent2,
+                        ),
+                      if (married)
+                        _MetaPair(
+                          label: 'MARRIAGE',
+                          value: _formatDate(member.marriageDate),
                           labelColor: _C.accent2,
                         ),
                     ],
@@ -679,7 +694,7 @@ class _MetaPair extends StatelessWidget {
 
 class _MemberFormDialog extends StatefulWidget {
   final MemberService service;
-  final Map<String, dynamic>? member;
+  final Member? member;
 
   const _MemberFormDialog({
     required this.service,
@@ -697,6 +712,7 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
 
   DateTime? _dob;
   DateTime? _baptismDate;
+  DateTime? _marriageDate;
   bool _saving = false;
 
   bool get _editing => widget.member != null;
@@ -707,16 +723,12 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
 
     final member = widget.member;
 
-    _nameController = TextEditingController(
-      text: (member?['name'] ?? '').toString(),
-    );
-    _phoneController = TextEditingController(
-      text: (member?['phoneNumber'] ?? '').toString(),
-    );
+    _nameController = TextEditingController(text: member?.name ?? '');
+    _phoneController = TextEditingController(text: member?.phoneNumber ?? '');
 
-    _dob = DateTime.tryParse((member?['dob'] ?? '').toString());
-    _baptismDate =
-        DateTime.tryParse((member?['baptismDate'] ?? '').toString());
+    _dob = member?.dob;
+    _baptismDate = member?.baptismDate;
+    _marriageDate = member?.marriageDate;
   }
 
   @override
@@ -728,26 +740,40 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
 
   String _dateText(DateTime? date) {
     if (date == null) return 'Select date';
-    return '${date.day.toString().padLeft(2, '0')}/'
-        '${date.month.toString().padLeft(2, '0')}/${date.year}';
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  String? _dateValue(DateTime? date) {
-    if (date == null) return null;
-    final year = date.year.toString().padLeft(4, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-    return '$year-$month-$day';
-  }
-
-  Future<DateTime?> _pickDate(DateTime? currentDate) async {
+  Future<DateTime?> _pickDate(
+    DateTime? currentDate, {
+    bool allowFutureDates = true,
+  }) async {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final lastDate = allowFutureDates ? DateTime(now.year + 1) : today;
+    final current = currentDate == null
+        ? today
+        : DateTime(currentDate.year, currentDate.month, currentDate.day);
+    final initialDate = current.isAfter(lastDate) ? lastDate : current;
 
     return showDatePicker(
       context: context,
-      initialDate: currentDate ?? now,
+      initialDate: initialDate,
       firstDate: DateTime(1900),
-      lastDate: DateTime(now.year + 1),
+      lastDate: lastDate,
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
           colorScheme: const ColorScheme.dark(
@@ -773,18 +799,20 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
     try {
       if (_editing) {
         await widget.service.updateMember(
-          id: widget.member!['_id'].toString(),
+          id: widget.member!.id,
           name: _nameController.text,
-          dob: _dateValue(_dob),
+          dob: _dob,
           phoneNumber: _phoneController.text,
-          baptismDate: _dateValue(_baptismDate),
+          baptismDate: _baptismDate,
+          marriageDate: _marriageDate,
         );
       } else {
         await widget.service.createMember(
           name: _nameController.text,
-          dob: _dateValue(_dob),
+          dob: _dob,
           phoneNumber: _phoneController.text,
-          baptismDate: _dateValue(_baptismDate),
+          baptismDate: _baptismDate,
+          marriageDate: _marriageDate,
         );
       }
 
@@ -949,6 +977,21 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
                     }
                   },
                   onClear: () => setState(() => _baptismDate = null),
+                ),
+                const SizedBox(height: 18),
+                _dateField(
+                  label: 'MARRIAGE DATE',
+                  value: _marriageDate,
+                  onTap: () async {
+                    final date = await _pickDate(
+                      _marriageDate,
+                      allowFutureDates: false,
+                    );
+                    if (date != null && mounted) {
+                      setState(() => _marriageDate = date);
+                    }
+                  },
+                  onClear: () => setState(() => _marriageDate = null),
                 ),
               ],
             ),

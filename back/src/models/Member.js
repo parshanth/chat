@@ -21,6 +21,10 @@ const memberSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    marriageDate: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

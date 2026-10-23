@@ -1105,7 +1105,9 @@ class _MemberHistoryScreenState extends State<MemberHistoryScreen> {
     });
 
     try {
-      final allMembers = await _memberService.getMembers();
+      final allMembers = (await _memberService.getMembers())
+          .map((member) => member.toJson())
+          .toList();
       allMembers.sort(
         (a, b) => _name(a).toLowerCase().compareTo(_name(b).toLowerCase()),
       );

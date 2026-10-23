@@ -4,10 +4,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
+import '../models/member.dart';
 import '../utils/secure_storage.dart';
 
 class MemberService {
-  Future<List<Map<String, dynamic>>> getMembers() async {
+  Future<List<Member>> getMembers() async {
     final response = await http
         .get(
           Uri.parse('${ApiConfig.baseUrl}/members'),
@@ -32,26 +33,30 @@ class MemberService {
 
     return members
         .whereType<Map>()
-        .map((member) => Map<String, dynamic>.from(member))
+        .map((member) => Member.fromJson(Map<String, dynamic>.from(member)))
         .toList();
   }
 
-  Future<Map<String, dynamic>> createMember({
+  Future<Member> createMember({
     required String name,
-    String? dob,
+    DateTime? dob,
     String? phoneNumber,
-    String? baptismDate,
+    DateTime? baptismDate,
+    DateTime? marriageDate,
   }) async {
+    final request = Member(
+      id: '',
+      name: name.trim(),
+      dob: dob,
+      phoneNumber: phoneNumber?.trim() ?? '',
+      baptismDate: baptismDate,
+      marriageDate: marriageDate,
+    );
     final response = await http
         .post(
           Uri.parse('${ApiConfig.baseUrl}/members'),
           headers: await _headers(),
-          body: jsonEncode({
-            'name': name.trim(),
-            'dob': _dateValue(dob),
-            'phoneNumber': phoneNumber?.trim() ?? '',
-            'baptismDate': _dateValue(baptismDate),
-          }),
+          body: jsonEncode(request.toJson()),
         )
         .timeout(const Duration(seconds: 20));
 
@@ -64,26 +69,30 @@ class MemberService {
       );
     }
 
-    return Map<String, dynamic>.from(data['member'] as Map);
+    return Member.fromJson(Map<String, dynamic>.from(data['member'] as Map));
   }
 
-  Future<Map<String, dynamic>> updateMember({
+  Future<Member> updateMember({
     required String id,
     required String name,
-    String? dob,
+    DateTime? dob,
     String? phoneNumber,
-    String? baptismDate,
+    DateTime? baptismDate,
+    DateTime? marriageDate,
   }) async {
+    final request = Member(
+      id: '',
+      name: name.trim(),
+      dob: dob,
+      phoneNumber: phoneNumber?.trim() ?? '',
+      baptismDate: baptismDate,
+      marriageDate: marriageDate,
+    );
     final response = await http
         .put(
           Uri.parse('${ApiConfig.baseUrl}/members/$id'),
           headers: await _headers(),
-          body: jsonEncode({
-            'name': name.trim(),
-            'dob': _dateValue(dob),
-            'phoneNumber': phoneNumber?.trim() ?? '',
-            'baptismDate': _dateValue(baptismDate),
-          }),
+          body: jsonEncode(request.toJson()),
         )
         .timeout(const Duration(seconds: 20));
 
@@ -96,7 +105,7 @@ class MemberService {
       );
     }
 
-    return Map<String, dynamic>.from(data['member'] as Map);
+    return Member.fromJson(Map<String, dynamic>.from(data['member'] as Map));
   }
 
   Future<void> deleteMember(String id) async {
@@ -128,11 +137,6 @@ class MemberService {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer $token',
     };
-  }
-
-  String? _dateValue(String? value) {
-    if (value == null || value.trim().isEmpty) return null;
-    return value.trim();
   }
 
   Map<String, dynamic> _decode(http.Response response) {
