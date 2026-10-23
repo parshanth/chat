@@ -40,47 +40,45 @@ class _T {
     Color color = _C.text,
     double? height,
     double letterSpacing = -0.4,
-  }) =>
-      TextStyle(
-        fontFamily: _display,
-        fontSize: size,
-        fontWeight: weight,
-        color: color,
-        height: height,
-        letterSpacing: letterSpacing,
-      );
+  }) => TextStyle(
+    fontFamily: _display,
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    height: height,
+    letterSpacing: letterSpacing,
+  );
 
   static TextStyle number(double size, {Color color = _C.text}) => TextStyle(
-        fontFamily: _display,
-        fontSize: size,
-        fontWeight: FontWeight.w800,
-        color: color,
-        height: 1,
-        letterSpacing: -1,
-        fontFeatures: const [FontFeature.tabularFigures()],
-      );
+    fontFamily: _display,
+    fontSize: size,
+    fontWeight: FontWeight.w800,
+    color: color,
+    height: 1,
+    letterSpacing: -1,
+    fontFeatures: const [FontFeature.tabularFigures()],
+  );
 
   static TextStyle body(
     double size, {
     FontWeight weight = FontWeight.w400,
     Color color = _C.text2,
     double? height,
-  }) =>
-      TextStyle(
-        fontFamily: _body,
-        fontSize: size,
-        fontWeight: weight,
-        color: color,
-        height: height,
-      );
+  }) => TextStyle(
+    fontFamily: _body,
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    height: height,
+  );
 
   static TextStyle label({Color color = _C.text2}) => TextStyle(
-        fontFamily: _body,
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: color,
-        letterSpacing: 0.2,
-      );
+    fontFamily: _body,
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    color: color,
+    letterSpacing: 0.2,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -120,8 +118,11 @@ IconData _stateIcon(String status) {
 }
 
 String _initials(String name) {
-  final parts =
-      name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  final parts = name
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((p) => p.isNotEmpty)
+      .toList();
   if (parts.isEmpty) return '?';
   if (parts.length == 1) return parts.first[0].toUpperCase();
   return (parts.first[0] + parts.last[0]).toUpperCase();
@@ -162,9 +163,7 @@ Widget _lightDropdown<T>({
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 14),
     decoration: BoxDecoration(
-      color: onChanged == null
-          ? _C.inputBg.withValues(alpha: 0.6)
-          : _C.inputBg,
+      color: onChanged == null ? _C.inputBg.withValues(alpha: 0.6) : _C.inputBg,
       borderRadius: BorderRadius.circular(12),
       border: Border.all(color: _C.inputBorder),
     ),
@@ -188,10 +187,10 @@ Widget _lightDropdown<T>({
 }
 
 Widget _spinner({Color color = _C.ink}) => SizedBox(
-      width: 18,
-      height: 18,
-      child: CircularProgressIndicator(strokeWidth: 2, color: color),
-    );
+  width: 18,
+  height: 18,
+  child: CircularProgressIndicator(strokeWidth: 2, color: color),
+);
 
 Widget _initialsBlock(String name, {double size = 44, double font = 16}) {
   return Container(
@@ -208,11 +207,11 @@ Widget _initialsBlock(String name, {double size = 44, double font = 16}) {
 }
 
 Widget _loadingState() => const Padding(
-      padding: EdgeInsets.all(28),
-      child: Center(
-        child: CircularProgressIndicator(color: _C.accent, strokeWidth: 3),
-      ),
-    );
+  padding: EdgeInsets.all(28),
+  child: Center(
+    child: CircularProgressIndicator(color: _C.accent, strokeWidth: 3),
+  ),
+);
 
 Widget _errorState(String message, VoidCallback onRetry) {
   return Center(
@@ -244,64 +243,60 @@ Widget _errorState(String message, VoidCallback onRetry) {
 }
 
 ButtonStyle _accentButton() => FilledButton.styleFrom(
-      backgroundColor: _C.accent,
-      foregroundColor: _C.ink,
-      disabledBackgroundColor: _C.accent.withValues(alpha: 0.3),
-      disabledForegroundColor: _C.ink.withValues(alpha: 0.5),
-      minimumSize: const Size(0, 52),
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      textStyle: _T.display(15, letterSpacing: 0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    );
+  backgroundColor: _C.accent,
+  foregroundColor: _C.ink,
+  disabledBackgroundColor: _C.accent.withValues(alpha: 0.3),
+  disabledForegroundColor: _C.ink.withValues(alpha: 0.5),
+  minimumSize: const Size(0, 52),
+  padding: const EdgeInsets.symmetric(horizontal: 20),
+  textStyle: _T.display(15, letterSpacing: 0),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+);
 
 ButtonStyle _quietButton() => FilledButton.styleFrom(
-      backgroundColor: _C.elevated,
-      foregroundColor: _C.text,
-      disabledBackgroundColor: _C.elevated.withValues(alpha: 0.5),
-      disabledForegroundColor: _C.textSubtle,
-      minimumSize: const Size(0, 52),
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      textStyle: _T.display(15, letterSpacing: 0),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: _C.border),
-      ),
-    );
+  backgroundColor: _C.elevated,
+  foregroundColor: _C.text,
+  disabledBackgroundColor: _C.elevated.withValues(alpha: 0.5),
+  disabledForegroundColor: _C.textSubtle,
+  minimumSize: const Size(0, 52),
+  padding: const EdgeInsets.symmetric(horizontal: 20),
+  textStyle: _T.display(15, letterSpacing: 0),
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(12),
+    side: const BorderSide(color: _C.border),
+  ),
+);
 
 ButtonStyle _outlineButton() => OutlinedButton.styleFrom(
-      foregroundColor: _C.text,
-      disabledForegroundColor: _C.textSubtle,
-      side: const BorderSide(color: _C.border, width: 1.4),
-      minimumSize: const Size(0, 52),
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      textStyle: _T.display(15, letterSpacing: 0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    );
+  foregroundColor: _C.text,
+  disabledForegroundColor: _C.textSubtle,
+  side: const BorderSide(color: _C.border, width: 1.4),
+  minimumSize: const Size(0, 52),
+  padding: const EdgeInsets.symmetric(horizontal: 20),
+  textStyle: _T.display(15, letterSpacing: 0),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+);
 
 /// Three-column count strip: explicit label + large numeral per state.
 Widget _statStrip(int present, int absent, int unmarked) {
   Widget cell(String label, int value, Color color) => Expanded(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('$value', style: _T.number(30, color: color)),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: _T.body(
-                  12,
-                  weight: FontWeight.w600,
-                  color: _C.textSubtle,
-                ),
-              ),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$value', style: _T.number(30, color: color)),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: _T.body(12, weight: FontWeight.w600, color: _C.textSubtle),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 
   return Container(
     decoration: BoxDecoration(
@@ -726,8 +721,7 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
 
   Widget _weeklyRow(Map<String, dynamic> member) {
     final name = _memberName(member);
-    final status =
-        (member['status']?.toString() ?? 'unmarked').toLowerCase();
+    final status = (member['status']?.toString() ?? 'unmarked').toLowerCase();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
@@ -1278,10 +1272,7 @@ class _MemberHistoryScreenState extends State<MemberHistoryScreen> {
       value: _selectedYear,
       items: List.generate(11, (index) => DateTime.now().year - 5 + index)
           .map(
-            (year) => DropdownMenuItem<int>(
-              value: year,
-              child: Text('$year'),
-            ),
+            (year) => DropdownMenuItem<int>(value: year, child: Text('$year')),
           )
           .toList(),
       onChanged: (year) {
@@ -1865,6 +1856,6 @@ class _MemberAttendanceDetailScreenState
         ),
         Text('$value', style: _T.number(18)),
       ],
-    );   
+    );
   }
 }

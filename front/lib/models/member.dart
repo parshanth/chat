@@ -27,13 +27,13 @@ class Member {
   }
 
   Map<String, dynamic> toJson() => {
-        if (id.isNotEmpty) '_id': id,
-        'name': name,
-        'dob': _serializeDate(dob),
-        'phoneNumber': phoneNumber,
-        'baptismDate': _serializeDate(baptismDate),
-        'marriageDate': _serializeDate(marriageDate),
-      };
+    if (id.isNotEmpty) '_id': id,
+    'name': name,
+    'dob': _serializeDate(dob),
+    'phoneNumber': phoneNumber,
+    'baptismDate': _serializeDate(baptismDate),
+    'marriageDate': _serializeDate(marriageDate),
+  };
 
   static DateTime? _parseDate(dynamic value) {
     if (value is! String || value.isEmpty) return null;

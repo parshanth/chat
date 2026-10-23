@@ -39,16 +39,15 @@ TextStyle _display(
   Color color = _C.text,
   double letterSpacing = -0.4,
   double height = 1.1,
-}) =>
-    TextStyle(
-      fontFamily: _displayFamily,
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-      letterSpacing: letterSpacing,
-      height: height,
-      fontFeatures: const [FontFeature.tabularFigures()],
-    );
+}) => TextStyle(
+  fontFamily: _displayFamily,
+  fontSize: size,
+  fontWeight: weight,
+  color: color,
+  letterSpacing: letterSpacing,
+  height: height,
+  fontFeatures: const [FontFeature.tabularFigures()],
+);
 
 TextStyle _body(
   double size, {
@@ -56,42 +55,41 @@ TextStyle _body(
   Color color = _C.textSecondary,
   double height = 1.35,
   double letterSpacing = 0,
-}) =>
-    TextStyle(
-      fontFamily: _bodyFamily,
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-      height: height,
-      letterSpacing: letterSpacing,
-    );
+}) => TextStyle(
+  fontFamily: _bodyFamily,
+  fontSize: size,
+  fontWeight: weight,
+  color: color,
+  height: height,
+  letterSpacing: letterSpacing,
+);
 
 TextStyle _meta({Color color = _C.textSubtle}) => TextStyle(
-      fontFamily: _bodyFamily,
-      fontSize: 11,
-      fontWeight: FontWeight.w700,
-      letterSpacing: 1.4,
-      color: color,
-    );
+  fontFamily: _bodyFamily,
+  fontSize: 11,
+  fontWeight: FontWeight.w700,
+  letterSpacing: 1.4,
+  color: color,
+);
 
 ButtonStyle _primaryButton() => FilledButton.styleFrom(
-      backgroundColor: _C.accent,
-      foregroundColor: _C.bg,
-      disabledBackgroundColor: _C.accent.withValues(alpha: 0.4),
-      disabledForegroundColor: _C.bg.withValues(alpha: 0.6),
-      minimumSize: const Size(0, 48),
-      padding: const EdgeInsets.symmetric(horizontal: 22),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      textStyle: _body(15, weight: FontWeight.w700, color: _C.bg),
-    );
+  backgroundColor: _C.accent,
+  foregroundColor: _C.bg,
+  disabledBackgroundColor: _C.accent.withValues(alpha: 0.4),
+  disabledForegroundColor: _C.bg.withValues(alpha: 0.6),
+  minimumSize: const Size(0, 48),
+  padding: const EdgeInsets.symmetric(horizontal: 22),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  textStyle: _body(15, weight: FontWeight.w700, color: _C.bg),
+);
 
 ButtonStyle _quietButton() => TextButton.styleFrom(
-      foregroundColor: _C.textSecondary,
-      minimumSize: const Size(0, 48),
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      textStyle: _body(15, weight: FontWeight.w600),
-    );
+  foregroundColor: _C.textSecondary,
+  minimumSize: const Size(0, 48),
+  padding: const EdgeInsets.symmetric(horizontal: 18),
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  textStyle: _body(15, weight: FontWeight.w600),
+);
 
 void _snack(BuildContext context, String message, {bool error = false}) {
   ScaffoldMessenger.of(context)
@@ -236,10 +234,7 @@ class _MembersScreenState extends State<MembersScreen> {
   Future<void> _openMemberForm({Member? member}) async {
     final saved = await showDialog<bool>(
       context: context,
-      builder: (_) => _MemberFormDialog(
-        service: _service,
-        member: member,
-      ),
+      builder: (_) => _MemberFormDialog(service: _service, member: member),
     );
 
     if (saved == true && mounted) {
@@ -359,7 +354,6 @@ class _MembersScreenState extends State<MembersScreen> {
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                    
                     SliverToBoxAdapter(child: _buildSearch()),
                     SliverToBoxAdapter(child: _buildDirectoryHeader(members)),
                     if (_loading)
@@ -412,9 +406,6 @@ class _MembersScreenState extends State<MembersScreen> {
       ),
     );
   }
-
-  
-
 
   Widget _buildSearch() {
     return Padding(
@@ -517,7 +508,11 @@ class _MembersScreenState extends State<MembersScreen> {
                     name.isEmpty ? 'Unnamed member' : name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: _display(17, weight: FontWeight.w700, letterSpacing: -0.2),
+                    style: _display(
+                      17,
+                      weight: FontWeight.w700,
+                      letterSpacing: -0.2,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -549,10 +544,7 @@ class _MembersScreenState extends State<MembersScreen> {
                     runSpacing: 6,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      _MetaPair(
-                        label: 'DOB',
-                        value: _formatDate(member.dob),
-                      ),
+                      _MetaPair(label: 'DOB', value: _formatDate(member.dob)),
                       if (baptised)
                         _MetaPair(
                           label: 'BAPTISED',
@@ -591,8 +583,7 @@ class _MembersScreenState extends State<MembersScreen> {
                   value: 'edit',
                   child: Row(
                     children: [
-                      const Icon(Icons.edit_outlined,
-                          size: 18, color: _C.text),
+                      const Icon(Icons.edit_outlined, size: 18, color: _C.text),
                       const SizedBox(width: 10),
                       Text('Edit', style: _body(15, color: _C.text)),
                     ],
@@ -602,8 +593,11 @@ class _MembersScreenState extends State<MembersScreen> {
                   value: 'delete',
                   child: Row(
                     children: [
-                      const Icon(Icons.delete_outline,
-                          size: 18, color: _C.error),
+                      const Icon(
+                        Icons.delete_outline,
+                        size: 18,
+                        color: _C.error,
+                      ),
                       const SizedBox(width: 10),
                       Text('Delete', style: _body(15, color: _C.error)),
                     ],
@@ -638,14 +632,16 @@ class _Stat extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(value, style: _display(32, color: valueColor, letterSpacing: -1)),
+            Text(
+              value,
+              style: _display(32, color: valueColor, letterSpacing: -1),
+            ),
             const SizedBox(height: 6),
             Text(
               label,
-              style: _meta(color: _C.textSecondary).copyWith(
-                fontSize: 10,
-                letterSpacing: 1.1,
-              ),
+              style: _meta(
+                color: _C.textSecondary,
+              ).copyWith(fontSize: 10, letterSpacing: 1.1),
             ),
           ],
         ),
@@ -680,7 +676,9 @@ class _MetaPair extends StatelessWidget {
       children: [
         Text(
           label,
-          style: _meta(color: labelColor).copyWith(fontSize: 10, letterSpacing: 1.2),
+          style: _meta(
+            color: labelColor,
+          ).copyWith(fontSize: 10, letterSpacing: 1.2),
         ),
         const SizedBox(width: 6),
         Text(
@@ -696,10 +694,7 @@ class _MemberFormDialog extends StatefulWidget {
   final MemberService service;
   final Member? member;
 
-  const _MemberFormDialog({
-    required this.service,
-    this.member,
-  });
+  const _MemberFormDialog({required this.service, this.member});
 
   @override
   State<_MemberFormDialog> createState() => _MemberFormDialogState();
@@ -828,9 +823,9 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
   }
 
   Widget _label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text, style: _meta(color: _C.textSecondary)),
-      );
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(text, style: _meta(color: _C.textSecondary)),
+  );
 
   Widget _dateField({
     required String label,
@@ -1028,10 +1023,7 @@ class _ErrorView extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
 
-  const _ErrorView({
-    required this.message,
-    required this.onRetry,
-  });
+  const _ErrorView({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -1066,10 +1058,7 @@ class _EmptyView extends StatelessWidget {
   final bool searching;
   final VoidCallback onAdd;
 
-  const _EmptyView({
-    required this.searching,
-    required this.onAdd,
-  });
+  const _EmptyView({required this.searching, required this.onAdd});
 
   @override
   Widget build(BuildContext context) {

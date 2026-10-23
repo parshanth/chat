@@ -4,10 +4,7 @@ import 'package:church_attendance/models/member.dart';
 void main() {
   group('Member', () {
     test('loads legacy records without a marriage date', () {
-      final member = Member.fromJson({
-        '_id': 'member-1',
-        'name': 'Member One',
-      });
+      final member = Member.fromJson({'_id': 'member-1', 'name': 'Member One'});
 
       expect(member.id, 'member-1');
       expect(member.marriageDate, isNull);
@@ -25,10 +22,7 @@ void main() {
     });
 
     test('treats null or invalid dates as absent', () {
-      expect(
-        Member.fromJson({'marriageDate': null}).marriageDate,
-        isNull,
-      );
+      expect(Member.fromJson({'marriageDate': null}).marriageDate, isNull);
       expect(
         Member.fromJson({'marriageDate': 'not a date'}).marriageDate,
         isNull,

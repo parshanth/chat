@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -28,7 +27,10 @@ class MemberService {
     final members = data['members'];
 
     if (members is! List) {
-      throw MemberException('Invalid member data received.', response.statusCode);
+      throw MemberException(
+        'Invalid member data received.',
+        response.statusCode,
+      );
     }
 
     return members
