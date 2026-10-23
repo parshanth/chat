@@ -296,6 +296,33 @@ class _MembersScreenState extends State<MembersScreen> {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: _C.bg,
+        appBar: AppBar(
+          backgroundColor: _C.bg,
+          surfaceTintColor: Colors.transparent,
+          foregroundColor: _C.text,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          title: Text('Members', style: _display(17, letterSpacing: -0.2)),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: IconButton(
+                tooltip: 'Refresh',
+                onPressed: _loading ? null : _loadMembers,
+                icon: const Icon(Icons.refresh, size: 22),
+                style: IconButton.styleFrom(
+                  foregroundColor: _C.text,
+                  disabledForegroundColor: _C.textSubtle,
+                  backgroundColor: _C.surface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(color: _C.border),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
         floatingActionButton: FloatingActionButton.extended(
           onPressed: () => _openMemberForm(),
           backgroundColor: _C.accent,
@@ -324,8 +351,7 @@ class _MembersScreenState extends State<MembersScreen> {
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                    SliverToBoxAdapter(child: _buildHeader()),
-                    SliverToBoxAdapter(child: _buildStats(showStats)),
+                    
                     SliverToBoxAdapter(child: _buildSearch()),
                     SliverToBoxAdapter(child: _buildDirectoryHeader(members)),
                     if (_loading)
@@ -379,76 +405,8 @@ class _MembersScreenState extends State<MembersScreen> {
     );
   }
 
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 12, 0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('CHURCH REGISTER', style: _meta(color: _C.accent)),
-                const SizedBox(height: 8),
-                Text('Members', style: _display(42, letterSpacing: -1.2)),
-                const SizedBox(height: 8),
-                Text(
-                  'Contact details and key dates for your congregation.',
-                  style: _body(14.5),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _loading ? null : _loadMembers,
-            icon: const Icon(Icons.refresh, size: 22),
-            style: IconButton.styleFrom(
-              foregroundColor: _C.text,
-              disabledForegroundColor: _C.textSubtle,
-              backgroundColor: _C.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: _C.border),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  
 
-  Widget _buildStats(bool ready) {
-    String v(int n) => ready ? '$n' : '–';
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: _C.bgAlt,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _C.border),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        child: IntrinsicHeight(
-          child: Row(
-            children: [
-              _Stat(
-                value: v(_members.length),
-                label: 'TOTAL',
-                valueColor: _C.accent,
-              ),
-              const _StatDivider(),
-              _Stat(value: v(_baptisedCount), label: 'BAPTISED'),
-              const _StatDivider(),
-              _Stat(value: v(_birthdaysThisMonth), label: 'BIRTHDAYS THIS MONTH'),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildSearch() {
     return Padding(

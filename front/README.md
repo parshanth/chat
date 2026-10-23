@@ -1,4 +1,4 @@
-# flutter_basic_app
+# Church Attendance
 
 A new Flutter project.
 

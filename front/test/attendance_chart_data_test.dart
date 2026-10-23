@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_basic_app/utils/attendance_chart_data.dart';
+import 'package:church_attendance/utils/attendance_chart_data.dart';
 
 void main() {
   group('AttendanceChartData', () {

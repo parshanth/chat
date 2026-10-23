@@ -1,4 +1,4 @@
-package com.example.flutter_basic_app
+package com.example.church_attendance
 
 import io.flutter.embedding.android.FlutterActivity
 

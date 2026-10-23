@@ -1,6 +1,6 @@
 import 'package:excel/excel.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_basic_app/services/attendance_report_workbook.dart';
+import 'package:church_attendance/services/attendance_report_workbook.dart';
 
 String _cellText(Sheet sheet, int column, int row) {
   final value = sheet

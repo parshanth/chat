@@ -1,12 +1,12 @@
 {
-    "name": "flutter_basic_app",
-    "short_name": "flutter_basic_app",
-    "start_url": ".",
+    "name": "Church Attendance",
+    "short_name": "Attendance",
+    "start_url": "./",
+    "scope": "./",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#F6F8F6",
+    "theme_color": "#176B45",
+    "description": "Manage church attendance and member records.",
     "prefer_related_applications": false,
     "icons": [
         {

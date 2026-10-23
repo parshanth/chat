@@ -2,7 +2,7 @@
 class ApiConfig {
   ApiConfig._();
 
-  static const String baseUrl = 'http://172.20.10.2:5000/api/v1';
+  static const String baseUrl = 'https://attendance-production-cccd.up.railway.app/api/v1';
 
   static const String authUrl = '$baseUrl/auth';
   static const String registerUrl = '$authUrl/register';
