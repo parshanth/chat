@@ -29,7 +29,7 @@ class _C {
 }
 
 // Display family: Manrope. Body family: DM Sans.
-// Both are declared as bundled assets in pubspec.yaml (see notes).
+// Both are declared as bundled assets in pubspec.yaml.
 const _displayFamily = 'Manrope';
 const _bodyFamily = 'DMSans';
 
@@ -138,6 +138,26 @@ InputDecoration _inputDecoration({
   );
 }
 
+const _monthNames = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+String _formatDate(DateTime? date, {String empty = 'Not provided'}) {
+  if (date == null) return empty;
+  return '${date.day} ${_monthNames[date.month - 1]} ${date.year}';
+}
+
 class MembersScreen extends StatefulWidget {
   const MembersScreen({super.key});
 
@@ -203,34 +223,6 @@ class _MembersScreenState extends State<MembersScreen> {
     }).toList();
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'Not provided';
-
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
-  }
-
-  int get _baptisedCount =>
-      _members.where((member) => member.baptismDate != null).length;
-
-  int get _birthdaysThisMonth {
-    final month = DateTime.now().month;
-    return _members.where((member) => member.dob?.month == month).length;
-  }
-
   Future<void> _openMemberForm({Member? member}) async {
     final saved = await showDialog<bool>(
       context: context,
@@ -290,10 +282,130 @@ class _MembersScreenState extends State<MembersScreen> {
     }
   }
 
+  // Shows full details of a member when a row is tapped.
+  void _showMemberDetails(Member member) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: _C.surface,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      constraints: const BoxConstraints(maxWidth: 720),
+      builder: (sheetContext) {
+        final name = member.name.isEmpty ? 'Unnamed member' : member.name;
+        final phone = member.phoneNumber;
+
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: _C.elevated,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Text(
+                        name[0].toUpperCase(),
+                        style: _display(24, letterSpacing: 0),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('MEMBER', style: _meta(color: _C.accent)),
+                          const SizedBox(height: 4),
+                          Text(
+                            name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: _display(22, letterSpacing: -0.4),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _DetailRow(
+                  icon: Icons.phone_outlined,
+                  label: 'PHONE',
+                  value: phone.isEmpty ? 'Not provided' : phone,
+                ),
+                _DetailRow(
+                  icon: Icons.cake_outlined,
+                  label: 'DATE OF BIRTH',
+                  value: _formatDate(member.dob),
+                ),
+                _DetailRow(
+                  icon: Icons.water_drop_outlined,
+                  label: 'BAPTISM DATE',
+                  value: _formatDate(member.baptismDate),
+                ),
+                _DetailRow(
+                  icon: Icons.favorite_outline,
+                  label: 'MARRIAGE DATE',
+                  value: _formatDate(member.marriageDate),
+                  isLast: true,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton.icon(
+                        style: _quietButton().copyWith(
+                          foregroundColor: const WidgetStatePropertyAll(
+                            _C.error,
+                          ),
+                          side: const WidgetStatePropertyAll(
+                            BorderSide(color: _C.border),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          _deleteMember(member);
+                        },
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        label: const Text('Delete'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: FilledButton.icon(
+                        style: _primaryButton(),
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          _openMemberForm(member: member);
+                        },
+                        icon: const Icon(Icons.edit_outlined, size: 18),
+                        label: const Text('Edit member'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final members = _filteredMembers;
-    final showStats = !_loading && _error == null;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -465,16 +577,15 @@ class _MembersScreenState extends State<MembersScreen> {
     );
   }
 
+  // Compact row: avatar, name, phone. Everything else is in the details sheet.
   Widget _buildMemberRow(Member member, {required bool isLast}) {
     final name = member.name;
     final phone = member.phoneNumber;
-    final baptised = member.baptismDate != null;
-    final married = member.marriageDate != null;
 
     return InkWell(
-      onTap: () => _openMemberForm(member: member),
+      onTap: () => _showMemberDetails(member),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 16, 8, 16),
+        padding: const EdgeInsets.fromLTRB(20, 12, 8, 12),
         decoration: BoxDecoration(
           border: Border(
             top: const BorderSide(color: _C.border),
@@ -484,11 +595,10 @@ class _MembersScreenState extends State<MembersScreen> {
           ),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 46,
-              height: 46,
+              width: 44,
+              height: 44,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: _C.elevated,
@@ -496,7 +606,7 @@ class _MembersScreenState extends State<MembersScreen> {
               ),
               child: Text(
                 name.isEmpty ? '?' : name[0].toUpperCase(),
-                style: _display(19, letterSpacing: 0),
+                style: _display(18, letterSpacing: 0),
               ),
             ),
             const SizedBox(width: 14),
@@ -509,55 +619,20 @@ class _MembersScreenState extends State<MembersScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: _display(
-                      17,
+                      16,
                       weight: FontWeight.w700,
                       letterSpacing: -0.2,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.phone_outlined,
-                        size: 14,
-                        color: phone.isEmpty ? _C.textSubtle : _C.textSecondary,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          phone.isEmpty ? 'No phone number' : phone,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: _body(
-                            14,
-                            color: phone.isEmpty
-                                ? _C.textSubtle
-                                : _C.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 14,
-                    runSpacing: 6,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      _MetaPair(label: 'DOB', value: _formatDate(member.dob)),
-                      if (baptised)
-                        _MetaPair(
-                          label: 'BAPTISED',
-                          value: _formatDate(member.baptismDate),
-                          labelColor: _C.accent2,
-                        ),
-                      if (married)
-                        _MetaPair(
-                          label: 'MARRIAGE',
-                          value: _formatDate(member.marriageDate),
-                          labelColor: _C.accent2,
-                        ),
-                    ],
+                  const SizedBox(height: 3),
+                  Text(
+                    phone.isEmpty ? 'No phone number' : phone,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _body(
+                      13.5,
+                      color: phone.isEmpty ? _C.textSubtle : _C.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -612,80 +687,56 @@ class _MembersScreenState extends State<MembersScreen> {
   }
 }
 
-class _Stat extends StatelessWidget {
-  final String value;
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
   final String label;
-  final Color valueColor;
+  final String value;
+  final bool isLast;
 
-  const _Stat({
-    required this.value,
+  const _DetailRow({
+    required this.icon,
     required this.label,
-    this.valueColor = _C.text,
+    required this.value,
+    this.isLast = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              value,
-              style: _display(32, color: valueColor, letterSpacing: -1),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: _meta(
-                color: _C.textSecondary,
-              ).copyWith(fontSize: 10, letterSpacing: 1.1),
-            ),
-          ],
+    final empty = value == 'Not provided';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        border: Border(
+          top: const BorderSide(color: _C.border),
+          bottom: isLast
+              ? const BorderSide(color: _C.border)
+              : BorderSide.none,
         ),
       ),
-    );
-  }
-}
-
-class _StatDivider extends StatelessWidget {
-  const _StatDivider();
-
-  @override
-  Widget build(BuildContext context) =>
-      const VerticalDivider(width: 1, thickness: 1, color: _C.border);
-}
-
-class _MetaPair extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color labelColor;
-
-  const _MetaPair({
-    required this.label,
-    required this.value,
-    this.labelColor = _C.textSubtle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: _meta(
-            color: labelColor,
-          ).copyWith(fontSize: 10, letterSpacing: 1.2),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          value,
-          style: _body(13, color: _C.textSecondary, weight: FontWeight.w500),
-        ),
-      ],
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: _C.accent2),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: _meta(color: _C.textSecondary)),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: _body(
+                    16,
+                    weight: FontWeight.w500,
+                    color: empty ? _C.textSubtle : _C.text,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -731,25 +782,6 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
     _nameController.dispose();
     _phoneController.dispose();
     super.dispose();
-  }
-
-  String _dateText(DateTime? date) {
-    if (date == null) return 'Select date';
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   Future<DateTime?> _pickDate(
@@ -860,7 +892,7 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      _dateText(value),
+                      _formatDate(value, empty: 'Select date'),
                       style: _body(
                         15,
                         color: value == null ? _C.inputHint : _C.inputText,

@@ -7,6 +7,59 @@ import '../widgets/pending_approval_dialog.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 
+/// Text style for typed values on the black auth screens.
+final TextStyle _fieldStyle = GoogleFonts.rubik(
+  fontSize: 16,
+  fontWeight: FontWeight.w500,
+  color: AppColors.textPrimary,
+);
+
+OutlineInputBorder _pill(Color color, [double width = 1]) {
+  return OutlineInputBorder(
+    borderRadius: BorderRadius.circular(32),
+    borderSide: BorderSide(color: color, width: width),
+  );
+}
+
+/// Pill-shaped, glass-like field made to sit on pure black beside the logo.
+/// Quiet at rest, lights up green when focused.
+InputDecoration _fieldDecoration({
+  required String hint,
+  required IconData icon,
+  Widget? suffix,
+}) {
+  return InputDecoration(
+    hintText: hint,
+    hintStyle: GoogleFonts.rubik(
+      fontSize: 15,
+      color: AppColors.textSupporting,
+    ),
+    filled: true,
+    fillColor: Colors.white.withAlpha(14),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+    prefixIcon: Padding(
+      padding: const EdgeInsetsDirectional.only(start: 18, end: 10),
+      child: Icon(icon, size: 20),
+    ),
+    prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+    prefixIconColor: AppColors.inputIcon,
+    suffixIcon: suffix == null
+        ? null
+        : Padding(
+            padding: const EdgeInsetsDirectional.only(end: 6),
+            child: suffix,
+          ),
+    border: _pill(Colors.white.withAlpha(28)),
+    enabledBorder: _pill(Colors.white.withAlpha(28)),
+    disabledBorder: _pill(Colors.white.withAlpha(16)),
+    focusedBorder: _pill(AppColors.success, 1.5),
+    errorBorder: _pill(AppColors.error),
+    focusedErrorBorder: _pill(AppColors.error, 1.5),
+    errorStyle: GoogleFonts.rubik(fontSize: 12.5, color: AppColors.error),
+    errorMaxLines: 2,
+  );
+}
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -23,6 +76,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+
+  // The logo artwork sits on pure black, so the whole screen is pure black
+  // too. That way the logo has no visible box and simply "floats".
+  static const Color _stage = Colors.black;
 
   @override
   void dispose() {
@@ -83,150 +140,151 @@ class _LoginScreenState extends State<LoginScreen> {
       );
   }
 
-  Widget _brandHeader() {
-    return Row(
+  /// The hero. Big, centred, on a soft pool of light, with its edges faded
+  /// into the black so any off-black pixels in the PNG never show a border.
+  Widget _logoHero({required double size}) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+
+    final logo = Stack(
+      alignment: Alignment.center,
       children: [
+        // Soft glow behind the logo.
         Container(
-          height: 48,
-          width: 48,
+          width: size * 1.35,
+          height: size * 1.35,
           decoration: BoxDecoration(
-            color: AppColors.selected,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.church_rounded,
-            color: AppColors.success,
-            size: 26,
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                AppColors.success.withAlpha(60),
+                AppColors.success.withAlpha(0),
+              ],
+            ),
           ),
         ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Church Attendance',
-                style: GoogleFonts.rubik(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              Text(
-                'Admin access',
-                style: GoogleFonts.rubik(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
+        // Logo with feathered edges.
+        ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (rect) => const RadialGradient(
+            colors: [Colors.white, Colors.white, Colors.transparent],
+            stops: [0.0, 0.8, 1.0],
+          ).createShader(rect),
+          child: Image.asset(
+            'assets/church.png',
+            width: size,
+            height: size,
+            fit: BoxFit.contain,
+            semanticLabel: 'Jehovah Jireh Light of Life AG Church',
           ),
         ),
       ],
+    );
+
+    return AnimatedSize(
+      duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      child: reduceMotion
+          ? logo
+          // The one entrance moment on this screen.
+          : TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 900),
+              curve: Curves.easeOutCubic,
+              builder: (context, t, child) => Opacity(
+                opacity: t,
+                child: Transform.scale(scale: 0.92 + 0.08 * t, child: child),
+              ),
+              child: logo,
+            ),
     );
   }
 
   Widget _loginButton() {
-    return FilledButton(
-      onPressed: _isLoading ? null : _login,
-      child: _isLoading
-          ? Semantics(
-              label: 'Signing in',
-              child: const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
+    return SizedBox(
+      height: 54,
+      child: FilledButton(
+        onPressed: _isLoading ? null : _login,
+        style: FilledButton.styleFrom(
+          shape: const StadiumBorder(),
+        ),
+        child: _isLoading
+            ? Semantics(
+                label: 'Signing in',
+                child: const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+              )
+            : Text(
+                'Sign in',
+                style: GoogleFonts.rubik(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            )
-          : const Text('Sign in'),
+      ),
     );
   }
 
-  Widget _registerRow() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Flexible(
-          child: Text(
-            'New here?',
-            style: GoogleFonts.rubik(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
+  Widget _registerLink() {
+    return Center(
+      child: TextButton(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.success,
+          disabledForegroundColor: AppColors.textSupporting,
+          minimumSize: const Size(48, 48),
+          tapTargetSize: MaterialTapTargetSize.padded,
+          textStyle: GoogleFonts.rubik(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
           ),
         ),
-        TextButton(
-          style: TextButton.styleFrom(
-            // Lighter green: the primary action green is too dim as
-            // text on the dark background.
-            foregroundColor: AppColors.success,
-            disabledForegroundColor: AppColors.textSupporting,
-            minimumSize: const Size(48, 48),
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-            tapTargetSize: MaterialTapTargetSize.padded,
-            textStyle: GoogleFonts.rubik(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          onPressed: _isLoading
-              ? null
-              : () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                  ),
-          child: const Text('Create an account'),
-        ),
-      ],
+        onPressed: _isLoading
+            ? null
+            : () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                ),
+        child: const Text('Create account'),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final keyboardOpen = media.viewInsets.bottom > 0;
+    // Logo takes ~65% of the width on phones, shrinks while typing.
+    final logoSize = keyboardOpen
+        ? 110.0
+        : (media.size.width * 0.65).clamp(180.0, 280.0);
+
     return Theme(
       data: AppTheme.dark(context),
       child: Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: _stage,
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: const EdgeInsets.all(AppSpacing.xl),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xl,
+                vertical: AppSpacing.lg,
+              ),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
+                constraints: const BoxConstraints(maxWidth: 380),
                 child: AutofillGroup(
                   child: Form(
                     key: _formKey,
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _brandHeader(),
-                        const SizedBox(height: AppSpacing.xxxl),
-                        Semantics(
-                          header: true,
-                          child: Text(
-                            'Welcome back',
-                            style: GoogleFonts.rubik(
-                              fontSize: 26,
-                              height: 1.2,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          'Sign in with your registered number and password.',
-                          style: GoogleFonts.rubik(
-                            fontSize: 14,
-                            height: 1.4,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xxl),
-                        const FieldLabel('Number'),
+                        Center(child: _logoHero(size: logoSize)),
+                        const SizedBox(height: AppSpacing.xl),
                         TextFormField(
                           controller: _numberController,
                           readOnly: _isLoading,
@@ -237,9 +295,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           autocorrect: false,
                           enableSuggestions: false,
                           autofillHints: const [AutofillHints.username],
-                          style: AppInputs.valueStyle,
-                          decoration: AppInputs.decoration(
-                            hint: 'Registered number',
+                          style: _fieldStyle,
+                          cursorColor: AppColors.success,
+                          decoration: _fieldDecoration(
+                            hint: 'Number',
                             icon: Icons.person_outline,
                           ),
                           validator: (value) {
@@ -249,8 +308,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: AppSpacing.lg),
-                        const FieldLabel('Password'),
+                        const SizedBox(height: AppSpacing.md),
                         TextFormField(
                           controller: _passwordController,
                           focusNode: _passwordFocus,
@@ -261,9 +319,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           autocorrect: false,
                           enableSuggestions: false,
                           autofillHints: const [AutofillHints.password],
-                          style: AppInputs.valueStyle,
-                          decoration: AppInputs.decoration(
-                            hint: 'Enter your password',
+                          style: _fieldStyle,
+                          cursorColor: AppColors.success,
+                          decoration: _fieldDecoration(
+                            hint: 'Password',
                             icon: Icons.lock_outline,
                             suffix: IconButton(
                               tooltip: _obscurePassword
@@ -290,8 +349,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: AppSpacing.xl),
                         _loginButton(),
-                        const SizedBox(height: AppSpacing.md),
-                        _registerRow(),
+                        const SizedBox(height: AppSpacing.sm),
+                        _registerLink(),
                       ],
                     ),
                   ),

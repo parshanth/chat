@@ -25,6 +25,12 @@ class _C {
   static const error = Color(0xFFFF8585);
 }
 
+// ---- Church branding ----
+class _Brand {
+  static const churchName = 'Jehovah Jireh Light of Life';
+  static const denomination = 'AG CHURCH';
+}
+
 // ---- Type system: Manrope (display) + DM Sans (body) ----
 class _T {
   static TextStyle display(double size, {Color? color, double? height}) =>
@@ -37,11 +43,11 @@ class _T {
       );
 
   static TextStyle title(double size, {Color? color}) => GoogleFonts.manrope(
-        fontSize: size,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.01 * size,
-        color: color ?? _C.textPrimary,
-      );
+    fontSize: size,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.01 * size,
+    color: color ?? _C.textPrimary,
+  );
 
   static TextStyle body(double size, {Color? color, FontWeight? weight}) =>
       GoogleFonts.dmSans(
@@ -52,11 +58,11 @@ class _T {
       );
 
   static TextStyle meta({Color? color}) => GoogleFonts.dmSans(
-        fontSize: 11.5,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.4,
-        color: color ?? _C.textSubtle,
-      );
+    fontSize: 11.5,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 1.4,
+    color: color ?? _C.textSubtle,
+  );
 }
 
 class HomeScreen extends StatefulWidget {
@@ -141,9 +147,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _keepSessionAfterVerificationFailure(AuthException error) {
     if (!mounted) return;
     setState(() => _isLoading = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(error.message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(error.message)));
   }
 
   Future<void> _logout() async {
@@ -179,49 +185,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _openMembers() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const MembersScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const MembersScreen()));
   }
 
   void _openAttendance() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const AddAttendanceScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AddAttendanceScreen()));
   }
 
   void _openSummary() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const AttendanceSummaryScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AttendanceSummaryScreen()));
   }
 
+  /// Top bar now only holds the logout button (icon and name were removed).
   Widget _topBar() {
     return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        Container(
-          height: 36,
-          width: 36,
-          decoration: BoxDecoration(
-            color: _C.elevated,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(
-            Icons.church_rounded,
-            size: 20,
-            color: _C.accent,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text('CHURCH ATTENDANCE', style: _T.meta()),
-        ),
         IconButton(
           onPressed: _isLoading ? null : _logout,
           tooltip: 'Logout',
@@ -247,10 +232,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       children: [
         Semantics(
           header: true,
-          child: Text('Welcome', style: _T.display(40, height: 1.05)),
+          label: 'Welcome to ${_Brand.churchName}',
+          excludeSemantics: true,
+          child: Text.rich(
+            TextSpan(
+              children: [
+                const TextSpan(text: 'Welcome to\n'),
+                TextSpan(
+                  text: _Brand.churchName,
+                  style: const TextStyle(color: _C.accent),
+                ),
+              ],
+            ),
+            style: _T.display(36, height: 1.1),
+          ),
         ),
+        const SizedBox(height: 10),
+        Text(_Brand.denomination, style: _T.meta(color: _C.accentSecondary)),
         if (number.isNotEmpty) ...[
-          const SizedBox(height: 14),
+          const SizedBox(height: 24),
           Text('SIGNED IN AS', style: _T.meta()),
           const SizedBox(height: 4),
           Text(
@@ -299,10 +299,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
               const SizedBox(height: 40),
-              Text(
-                'Attendance',
-                style: _T.display(30, color: _C.onAccent),
-              ),
+              Text('Attendance', style: _T.display(30, color: _C.onAccent)),
               const SizedBox(height: 6),
               Text(
                 'Record Sunday attendance',
@@ -396,7 +393,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _content() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+      padding: const EdgeInsets.fromLTRB(24, 36, 24, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -435,8 +432,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             side: const BorderSide(color: _C.border),
           ),
         ),
-        progressIndicatorTheme:
-            const ProgressIndicatorThemeData(color: _C.accent),
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          color: _C.accent,
+        ),
       ),
       child: Scaffold(
         backgroundColor: _C.background,
@@ -444,17 +442,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 600),
-              child: Column(
+              child: Stack(
+                fit: StackFit.expand,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 12, 16, 0),
-                    child: _topBar(),
-                  ),
-                  Expanded(
+                  Positioned.fill(
                     child: _isLoading
                         ? const Center(child: CircularProgressIndicator())
                         : _content(),
                   ),
+                  Positioned(top: 4, right: 16, child: _topBar()),
                 ],
               ),
             ),
