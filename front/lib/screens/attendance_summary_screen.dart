@@ -15,24 +15,24 @@ part 'attendance_details_screen.dart';
 // into the shared theme file when you are ready to unify them.
 // ---------------------------------------------------------------------------
 class _C {
-  static const bg = Color(0xFF101511);
-  static const bg2 = Color(0xFF171E18);
-  static const surface = Color(0xFF202922);
-  static const elevated = Color(0xFF29342B);
-  static const text = Color(0xFFF5F4EC);
-  static const text2 = Color(0xFFA8B4A8);
-  static const textSubtle = Color(0xFF849184);
-  static const border = Color(0xFF354237);
+  static const bg = Color(0xFF090A0B);
+  static const bg2 = Color(0xFF0F1113);
+  static const surface = Color(0xFF151719);
+  static const elevated = Color(0xFF1C1F22);
+  static const text = Color(0xFFF5F5F5);
+  static const text2 = Color(0xFFA1A5AA);
+  static const textSubtle = Color(0xFF747A80);
+  static const border = Color(0xFF292D31);
   static const accent = Color(0xFFD6F078);
-  static const inputBg = Color(0xFFF4F3ED);
-  static const inputText = Color(0xFF172016);
-  static const inputHint = Color(0xFF687368);
-  static const inputIcon = Color(0xFF455349);
-  static const inputBorder = Color(0xFFD7DED6);
-  static const inputFocus = Color(0xFF527B45);
+  static const inputBg = Color(0xFFF0F0EC);
+  static const inputText = Color(0xFF171918);
+  static const inputHint = Color(0xFF737871);
+  static const inputIcon = Color(0xFF505650);
+  static const inputBorder = Color(0xFFD3D6CF);
+  static const inputFocus = Color(0xFF777F70);
   static const error = Color(0xFFFF8585);
   static const success = Color(0xFF75D99A);
-  static const ink = Color(0xFF101511);
+  static const ink = Color(0xFF171918);
 }
 
 class _T {

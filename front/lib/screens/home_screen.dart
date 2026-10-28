@@ -11,17 +11,17 @@ import 'members_screen.dart';
 
 // ---- Art direction tokens (local to this screen) ----
 class _C {
-  static const background = Color(0xFF101511);
-  static const surface = Color(0xFF202922);
-  static const elevated = Color(0xFF29342B);
-  static const textPrimary = Color(0xFFF5F4EC);
-  static const textSecondary = Color(0xFFA8B4A8);
-  static const textSubtle = Color(0xFF849184);
-  static const border = Color(0xFF354237);
+  static const background = Color(0xFF090A0B);
+  static const surface = Color(0xFF151719);
+  static const elevated = Color(0xFF1C1F22);
+  static const textPrimary = Color(0xFFF5F5F5);
+  static const textSecondary = Color(0xFFA1A5AA);
+  static const textSubtle = Color(0xFF747A80);
+  static const border = Color(0xFF292D31);
   static const accent = Color(0xFFD6F078);
-  static const accentSecondary = Color(0xFF75C6A0);
-  static const onAccent = Color(0xFF172016);
-  static const onAccentMuted = Color(0xFF34431F);
+  static const accentSecondary = Color(0xFF75D99A);
+  static const onAccent = Color(0xFF171918);
+  static const onAccentMuted = Color(0xFF505650);
   static const error = Color(0xFFFF8585);
 }
 

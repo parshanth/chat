@@ -3,18 +3,16 @@ import 'package:flutter/material.dart';
 import '../services/attendance_service.dart';
 
 class _C {
-  static const bg = Color(0xFF101511), table = Color(0xFF171E18);
-  static const header = Color(0xFF202922);
-  static const text = Color(0xFFF5F4EC), text2 = Color(0xFFA8B4A8);
-  static const textSubtle = Color(0xFF849184), border = Color(0xFF354237);
-  static const rowBorder = Color(0xFF263028);
-  static const accent = Color(0xFFD6F078), inputBg = Color(0xFFF4F3ED);
-  static const inputText = Color(0xFF172016), inputHint = Color(0xFF687368);
-  static const inputIcon = Color(0xFF455349), inputBorder = Color(0xFFD7DED6);
+  static const bg = Color(0xFF090A0B), table = Color(0xFF0F1113);
+  static const header = Color(0xFF151719);
+  static const text = Color(0xFFF5F5F5), text2 = Color(0xFFA1A5AA);
+  static const textSubtle = Color(0xFF747A80), border = Color(0xFF292D31);
+  static const accent = Color(0xFFD6F078), inputBg = Color(0xFFF0F0EC);
+  static const inputText = Color(0xFF171918), inputHint = Color(0xFF737871);
+  static const inputIcon = Color(0xFF505650), inputBorder = Color(0xFFD3D6CF);
+  static const inputFocus = Color(0xFF777F70);
   static const error = Color(0xFFFF8585), success = Color(0xFF75D99A);
-  static const presentFill = Color(0xFF2E7D4F), absentFill = Color(0xFFA83A3A);
-  static const neutral = Color(0xFF8A948A);
-  static const ink = Color(0xFF101511);
+  static const ink = Color(0xFF171918);
 }
 
 class _T {
@@ -352,7 +350,7 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             border: _inputBorder(),
             enabledBorder: _inputBorder(),
-            focusedBorder: _inputBorder(_C.accent, 1.5),
+            focusedBorder: _inputBorder(_C.inputFocus, 1.5),
           ),
         ),
       );
@@ -376,7 +374,7 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
             _statDivider(),
             _stat('Absent', _absentCount, _C.error),
             _statDivider(),
-            _stat('Unmarked', _unmarkedCount, _C.neutral),
+            _stat('Unmarked', _unmarkedCount, _C.textSubtle),
           ],
         ),
       );
@@ -491,7 +489,7 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
       decoration: BoxDecoration(
         border: isLast
             ? null
-            : const Border(bottom: BorderSide(color: _C.rowBorder)),
+            : const Border(bottom: BorderSide(color: _C.border)),
       ),
       child: Row(
         children: [
@@ -536,7 +534,7 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
   ) {
     final selected = _status(member) == status;
     final present = status == 'present';
-    final fill = present ? _C.presentFill : _C.absentFill;
+    final fill = (present ? _C.success : _C.error).withValues(alpha: 0.18);
     final tint = present ? _C.success : _C.error;
     return SizedBox(
       width: width,

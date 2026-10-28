@@ -15,7 +15,8 @@ class SecureStorage {
 
   static Future<void> saveToken(String token) async {
     if (kIsWeb) {
-      html.window.sessionStorage[_tokenKey] = token;
+      html.window.localStorage[_tokenKey] = token;
+      html.window.sessionStorage.remove(_tokenKey);
       return;
     }
 
@@ -24,7 +25,7 @@ class SecureStorage {
 
   static Future<String?> getToken() async {
     if (kIsWeb) {
-      return html.window.sessionStorage[_tokenKey];
+      return _readWebValue(_tokenKey);
     }
 
     return _storage.read(key: _tokenKey);
@@ -34,7 +35,8 @@ class SecureStorage {
     final value = jsonEncode(user.toJson());
 
     if (kIsWeb) {
-      html.window.sessionStorage[_userKey] = value;
+      html.window.localStorage[_userKey] = value;
+      html.window.sessionStorage.remove(_userKey);
       return;
     }
 
@@ -43,7 +45,7 @@ class SecureStorage {
 
   static Future<AuthUser?> getUser() async {
     final value = kIsWeb
-        ? html.window.sessionStorage[_userKey]
+        ? _readWebValue(_userKey)
         : await _storage.read(key: _userKey);
     if (value == null || value.isEmpty) return null;
 
@@ -63,6 +65,7 @@ class SecureStorage {
 
   static Future<void> deleteUser() async {
     if (kIsWeb) {
+      html.window.localStorage.remove(_userKey);
       html.window.sessionStorage.remove(_userKey);
       return;
     }
@@ -72,6 +75,8 @@ class SecureStorage {
 
   static Future<void> deleteToken() async {
     if (kIsWeb) {
+      html.window.localStorage.remove(_tokenKey);
+      html.window.localStorage.remove(_userKey);
       html.window.sessionStorage.remove(_tokenKey);
       html.window.sessionStorage.remove(_userKey);
       return;
@@ -83,10 +88,25 @@ class SecureStorage {
 
   static Future<void> clearAll() async {
     if (kIsWeb) {
-      html.window.sessionStorage.clear();
+      html.window.localStorage.remove(_tokenKey);
+      html.window.localStorage.remove(_userKey);
+      html.window.sessionStorage.remove(_tokenKey);
+      html.window.sessionStorage.remove(_userKey);
       return;
     }
 
     await _storage.deleteAll();
+  }
+
+  static String? _readWebValue(String key) {
+    final value = html.window.localStorage[key];
+    if (value != null) return value;
+
+    final legacyValue = html.window.sessionStorage[key];
+    if (legacyValue == null) return null;
+
+    html.window.localStorage[key] = legacyValue;
+    html.window.sessionStorage.remove(key);
+    return legacyValue;
   }
 }
