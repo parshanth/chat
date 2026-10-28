@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models/member.dart';
 import '../services/member_service.dart';
+import 'attendance_summary_screen.dart';
 
 // ---------------------------------------------------------------------------
 // Design tokens (local to this screen; promote to the shared theme file when
@@ -10,7 +11,7 @@ import '../services/member_service.dart';
 // ---------------------------------------------------------------------------
 class _C {
   static const bg = Color(0xFF101511);
-  static const bgAlt = Color(0xFF171E18);
+  static const bg2 = Color(0xFF171E18);
   static const surface = Color(0xFF202922);
   static const elevated = Color(0xFF29342B);
   static const text = Color(0xFFF5F4EC);
@@ -18,7 +19,8 @@ class _C {
   static const textSubtle = Color(0xFF849184);
   static const border = Color(0xFF354237);
   static const accent = Color(0xFFD6F078);
-  static const accent2 = Color(0xFF75C6A0);
+  static const ink = Color(0xFF101511);
+  static const success = Color(0xFF75D99A);
   static const inputBg = Color(0xFFF4F3ED);
   static const inputText = Color(0xFF172016);
   static const inputHint = Color(0xFF687368);
@@ -27,6 +29,15 @@ class _C {
   static const inputFocus = Color(0xFF527B45);
   static const error = Color(0xFFFF8585);
 }
+
+// Radii: 12 inputs/buttons, 16 tiles, 20 cards/dialogs.
+const double _rControl = 12;
+const double _rTile = 16;
+const double _rCard = 20;
+
+const _maxContentWidth = 1000.0;
+const _gutter = 20.0;
+const _fastAnim = Duration(milliseconds: 200);
 
 // Display family: Manrope. Body family: DM Sans.
 // Both are declared as bundled assets in pubspec.yaml.
@@ -37,7 +48,7 @@ TextStyle _display(
   double size, {
   FontWeight weight = FontWeight.w800,
   Color color = _C.text,
-  double letterSpacing = -0.4,
+  double letterSpacing = -0.6,
   double height = 1.1,
 }) => TextStyle(
   fontFamily: _displayFamily,
@@ -53,7 +64,7 @@ TextStyle _body(
   double size, {
   FontWeight weight = FontWeight.w400,
   Color color = _C.textSecondary,
-  double height = 1.35,
+  double height = 1.45,
   double letterSpacing = 0,
 }) => TextStyle(
   fontFamily: _bodyFamily,
@@ -62,33 +73,75 @@ TextStyle _body(
   color: color,
   height: height,
   letterSpacing: letterSpacing,
+  fontFeatures: const [FontFeature.tabularFigures()],
 );
 
 TextStyle _meta({Color color = _C.textSubtle}) => TextStyle(
   fontFamily: _bodyFamily,
   fontSize: 11,
   fontWeight: FontWeight.w700,
-  letterSpacing: 1.4,
+  letterSpacing: 1.6,
+  height: 1.2,
   color: color,
+);
+
+Color _tint(Color color, double alpha) => color.withValues(alpha: alpha);
+
+BoxDecoration _cardDecoration({double radius = _rTile}) => BoxDecoration(
+  gradient: LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [_C.surface, Color.alphaBlend(_tint(_C.elevated, 0.7), _C.surface)],
+  ),
+  borderRadius: BorderRadius.circular(radius),
+  border: Border.all(color: _C.border),
+  boxShadow: [
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.24),
+      blurRadius: 24,
+      offset: const Offset(0, 8),
+    ),
+  ],
 );
 
 ButtonStyle _primaryButton() => FilledButton.styleFrom(
   backgroundColor: _C.accent,
-  foregroundColor: _C.bg,
-  disabledBackgroundColor: _C.accent.withValues(alpha: 0.4),
-  disabledForegroundColor: _C.bg.withValues(alpha: 0.6),
+  foregroundColor: _C.ink,
+  disabledBackgroundColor: _tint(_C.accent, 0.4),
+  disabledForegroundColor: _tint(_C.ink, 0.6),
   minimumSize: const Size(0, 48),
-  padding: const EdgeInsets.symmetric(horizontal: 22),
-  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-  textStyle: _body(15, weight: FontWeight.w700, color: _C.bg),
+  padding: const EdgeInsets.symmetric(horizontal: 24),
+  elevation: 0,
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_rControl)),
+  textStyle: _body(15, weight: FontWeight.w700, color: _C.ink),
 );
 
-ButtonStyle _quietButton() => TextButton.styleFrom(
-  foregroundColor: _C.textSecondary,
+ButtonStyle _secondaryButton() => FilledButton.styleFrom(
+  backgroundColor: _C.elevated,
+  foregroundColor: _C.text,
+  disabledBackgroundColor: _tint(_C.elevated, 0.5),
+  disabledForegroundColor: _C.textSubtle,
   minimumSize: const Size(0, 48),
-  padding: const EdgeInsets.symmetric(horizontal: 18),
-  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-  textStyle: _body(15, weight: FontWeight.w600),
+  padding: const EdgeInsets.symmetric(horizontal: 20),
+  elevation: 0,
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(_rControl),
+    side: const BorderSide(color: _C.border),
+  ),
+  textStyle: _body(15, weight: FontWeight.w600, color: _C.text),
+);
+
+ButtonStyle _destructiveButton() => FilledButton.styleFrom(
+  backgroundColor: _tint(_C.error, 0.14),
+  foregroundColor: _C.error,
+  minimumSize: const Size(0, 48),
+  padding: const EdgeInsets.symmetric(horizontal: 20),
+  elevation: 0,
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(_rControl),
+    side: BorderSide(color: _tint(_C.error, 0.3)),
+  ),
+  textStyle: _body(15, weight: FontWeight.w700, color: _C.error),
 );
 
 void _snack(BuildContext context, String message, {bool error = false}) {
@@ -98,9 +151,10 @@ void _snack(BuildContext context, String message, {bool error = false}) {
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: _C.elevated,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: error ? _C.error : _C.border),
+          borderRadius: BorderRadius.circular(_rControl),
+          side: BorderSide(color: error ? _tint(_C.error, 0.4) : _C.border),
         ),
         content: Text(
           message,
@@ -117,7 +171,7 @@ InputDecoration _inputDecoration({
 }) {
   OutlineInputBorder border(Color color, [double width = 1]) =>
       OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(_rControl),
         borderSide: BorderSide(color: color, width: width),
       );
 
@@ -128,7 +182,7 @@ InputDecoration _inputDecoration({
     suffixIcon: suffix,
     filled: true,
     fillColor: _C.inputBg,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     border: border(_C.inputBorder),
     enabledBorder: border(_C.inputBorder),
     focusedBorder: border(_C.inputFocus, 1.5),
@@ -224,12 +278,12 @@ class _MembersScreenState extends State<MembersScreen> {
   }
 
   Future<void> _openMemberForm({Member? member}) async {
-    final saved = await showDialog<bool>(
+    final saved = await showDialog<Member>(
       context: context,
       builder: (_) => _MemberFormDialog(service: _service, member: member),
     );
 
-    if (saved == true && mounted) {
+    if (saved != null && mounted) {
       await _loadMembers();
     }
   }
@@ -237,34 +291,7 @@ class _MembersScreenState extends State<MembersScreen> {
   Future<void> _deleteMember(Member member) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: _C.surface,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: _C.border),
-        ),
-        title: Text('Delete member?', style: _display(22)),
-        content: Text(
-          'Are you sure you want to delete ${member.name}? '
-          'This cannot be undone.',
-          style: _body(15),
-        ),
-        actions: [
-          TextButton(
-            style: _quietButton(),
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: _primaryButton().copyWith(
-              backgroundColor: const WidgetStatePropertyAll(_C.error),
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      builder: (_) => _DeleteMemberDialog(name: member.name),
     );
 
     if (confirmed != true || !mounted) return;
@@ -282,130 +309,42 @@ class _MembersScreenState extends State<MembersScreen> {
     }
   }
 
-  // Shows full details of a member when a row is tapped.
-  void _showMemberDetails(Member member) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: _C.surface,
-      isScrollControlled: true,
-      showDragHandle: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      constraints: const BoxConstraints(maxWidth: 720),
-      builder: (sheetContext) {
-        final name = member.name.isEmpty ? 'Unnamed member' : member.name;
-        final phone = member.phoneNumber;
+  void _openAttendanceDetails(Member member) {
+    if (member.id.isEmpty) {
+      _snack(
+        context,
+        'Attendance details are unavailable for this member.',
+        error: true,
+      );
+      return;
+    }
 
-        return SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _C.elevated,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Text(
-                        name[0].toUpperCase(),
-                        style: _display(24, letterSpacing: 0),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('MEMBER', style: _meta(color: _C.accent)),
-                          const SizedBox(height: 4),
-                          Text(
-                            name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: _display(22, letterSpacing: -0.4),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _DetailRow(
-                  icon: Icons.phone_outlined,
-                  label: 'PHONE',
-                  value: phone.isEmpty ? 'Not provided' : phone,
-                ),
-                _DetailRow(
-                  icon: Icons.cake_outlined,
-                  label: 'DATE OF BIRTH',
-                  value: _formatDate(member.dob),
-                ),
-                _DetailRow(
-                  icon: Icons.water_drop_outlined,
-                  label: 'BAPTISM DATE',
-                  value: _formatDate(member.baptismDate),
-                ),
-                _DetailRow(
-                  icon: Icons.favorite_outline,
-                  label: 'MARRIAGE DATE',
-                  value: _formatDate(member.marriageDate),
-                  isLast: true,
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton.icon(
-                        style: _quietButton().copyWith(
-                          foregroundColor: const WidgetStatePropertyAll(
-                            _C.error,
-                          ),
-                          side: const WidgetStatePropertyAll(
-                            BorderSide(color: _C.border),
-                          ),
-                        ),
-                        onPressed: () {
-                          Navigator.pop(sheetContext);
-                          _deleteMember(member);
-                        },
-                        icon: const Icon(Icons.delete_outline, size: 18),
-                        label: const Text('Delete'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: FilledButton.icon(
-                        style: _primaryButton(),
-                        onPressed: () {
-                          Navigator.pop(sheetContext);
-                          _openMemberForm(member: member);
-                        },
-                        icon: const Icon(Icons.edit_outlined, size: 18),
-                        label: const Text('Edit member'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MemberAttendanceDetailScreen(
+          memberId: member.id,
+          memberName: member.name.isEmpty ? 'Unnamed member' : member.name,
+          memberDetails: member.toJson(),
+          year: DateTime.now().year,
+        ),
+      ),
     );
+  }
+
+  void _onRefresh() {
+    HapticFeedback.selectionClick();
+    _loadMembers();
+  }
+
+  void _onAdd() {
+    HapticFeedback.lightImpact();
+    _openMemberForm();
   }
 
   @override
   Widget build(BuildContext context) {
     final members = _filteredMembers;
+    final columns = MediaQuery.sizeOf(context).width >= 800 ? 2 : 1;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -417,20 +356,21 @@ class _MembersScreenState extends State<MembersScreen> {
           foregroundColor: _C.text,
           elevation: 0,
           scrolledUnderElevation: 0,
-          title: Text('Members', style: _display(17, letterSpacing: -0.2)),
+          title: Text('Members', style: _display(18, letterSpacing: -0.3)),
           actions: [
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: IconButton(
                 tooltip: 'Refresh',
-                onPressed: _loading ? null : _loadMembers,
+                onPressed: _loading ? null : _onRefresh,
                 icon: const Icon(Icons.refresh, size: 22),
                 style: IconButton.styleFrom(
                   foregroundColor: _C.text,
                   disabledForegroundColor: _C.textSubtle,
                   backgroundColor: _C.surface,
+                  minimumSize: const Size(48, 48),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(_rControl),
                     side: const BorderSide(color: _C.border),
                   ),
                 ),
@@ -439,77 +379,59 @@ class _MembersScreenState extends State<MembersScreen> {
           ],
         ),
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => _openMemberForm(),
+          onPressed: _onAdd,
           backgroundColor: _C.accent,
-          foregroundColor: _C.bg,
+          foregroundColor: _C.ink,
           elevation: 0,
           focusElevation: 0,
           hoverElevation: 0,
           highlightElevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(_rTile),
           ),
           icon: const Icon(Icons.person_add_alt_1, size: 20),
           label: Text(
             'Add member',
-            style: _body(15, weight: FontWeight.w700, color: _C.bg),
+            style: _body(15, weight: FontWeight.w700, color: _C.ink),
           ),
         ),
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
-              child: RefreshIndicator(
-                color: _C.bg,
-                backgroundColor: _C.accent,
-                onRefresh: _loadMembers,
-                child: CustomScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    SliverToBoxAdapter(child: _buildSearch()),
-                    SliverToBoxAdapter(child: _buildDirectoryHeader(members)),
-                    if (_loading)
-                      const SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: Padding(
-                          padding: EdgeInsets.only(top: 56),
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: CircularProgressIndicator(
-                              color: _C.accent,
-                              strokeWidth: 3,
-                            ),
-                          ),
-                        ),
-                      )
-                    else if (_error != null)
-                      SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _ErrorView(
-                          message: _error!,
-                          onRetry: _loadMembers,
-                        ),
-                      )
-                    else if (members.isEmpty)
-                      SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _EmptyView(
-                          searching: _search.isNotEmpty,
-                          onAdd: () => _openMemberForm(),
-                        ),
-                      )
-                    else
-                      SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) => _buildMemberRow(
-                            members[index],
-                            isLast: index == members.length - 1,
-                          ),
-                          childCount: members.length,
+        body: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [_C.bg, _C.bg2],
+            ),
+          ),
+          child: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _maxContentWidth),
+                child: RefreshIndicator(
+                  color: _C.ink,
+                  backgroundColor: _C.accent,
+                  onRefresh: _loadMembers,
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: _SearchField(
+                          controller: _searchController,
+                          hasText: _search.isNotEmpty,
                         ),
                       ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 110)),
-                  ],
+                      SliverToBoxAdapter(
+                        child: _DirectoryHeader(
+                          loading: _loading,
+                          shown: members.length,
+                          total: _members.length,
+                          filtering: _search.isNotEmpty,
+                        ),
+                      ),
+                      ..._buildContent(members, columns),
+                      const SliverToBoxAdapter(child: SizedBox(height: 112)),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -519,167 +441,546 @@ class _MembersScreenState extends State<MembersScreen> {
     );
   }
 
-  Widget _buildSearch() {
+  List<Widget> _buildContent(List<Member> members, int columns) {
+    if (_loading) {
+      return [
+        _collectionSliver(
+          columns: columns,
+          count: 6,
+          itemBuilder: (context, index) => const _SkeletonTile(),
+        ),
+      ];
+    }
+
+    if (_error != null) {
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: _StateView(
+            icon: Icons.cloud_off_outlined,
+            tone: _C.error,
+            title: 'Could not load members',
+            message: _error!,
+            action: FilledButton(
+              style: _primaryButton(),
+              onPressed: _onRefresh,
+              child: const Text('Try again'),
+            ),
+          ),
+        ),
+      ];
+    }
+
+    if (members.isEmpty) {
+      final searching = _search.isNotEmpty;
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: _StateView(
+            icon: searching ? Icons.search_off : Icons.people_outline,
+            tone: _C.accent,
+            title: searching ? 'No matching members' : 'No members yet',
+            message: searching
+                ? 'Try another name or phone number.'
+                : 'Add your first church member to get started.',
+            action: searching
+                ? null
+                : FilledButton.icon(
+                    style: _primaryButton(),
+                    onPressed: _onAdd,
+                    icon: const Icon(Icons.person_add_alt_1, size: 20),
+                    label: const Text('Add member'),
+                  ),
+          ),
+        ),
+      ];
+    }
+
+    return [
+      _collectionSliver(
+        columns: columns,
+        count: members.length,
+        itemBuilder: (context, index) {
+          final member = members[index];
+          return _FadeSlideIn(
+            index: index,
+            child: _MemberTile(
+              member: member,
+              onOpen: () => _openAttendanceDetails(member),
+              onEdit: () => _openMemberForm(member: member),
+              onDelete: () => _deleteMember(member),
+            ),
+          );
+        },
+      ),
+    ];
+  }
+
+  Widget _collectionSliver({
+    required int columns,
+    required int count,
+    required NullableIndexedWidgetBuilder itemBuilder,
+  }) {
+    const padding = EdgeInsets.symmetric(horizontal: _gutter);
+
+    if (columns == 1) {
+      return SliverPadding(
+        padding: padding,
+        sliver: SliverList.separated(
+          itemCount: count,
+          itemBuilder: itemBuilder,
+          separatorBuilder: (context, index) => const SizedBox(height: 8),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: padding,
+      sliver: SliverGrid.builder(
+        itemCount: count,
+        itemBuilder: itemBuilder,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisExtent: 72,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// List screen widgets
+// ---------------------------------------------------------------------------
+
+class _SearchField extends StatelessWidget {
+  final TextEditingController controller;
+  final bool hasText;
+
+  const _SearchField({required this.controller, required this.hasText});
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+      padding: const EdgeInsets.fromLTRB(_gutter, 24, _gutter, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('SEARCH', style: _meta(color: _C.textSecondary)),
           const SizedBox(height: 8),
           TextField(
-            controller: _searchController,
+            controller: controller,
             cursorColor: _C.inputFocus,
+            textInputAction: TextInputAction.search,
             style: _body(15, color: _C.inputText),
             decoration: _inputDecoration(
               hint: 'Search by name or phone',
               icon: Icons.search,
-              suffix: _search.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Clear search',
-                      onPressed: _searchController.clear,
-                      icon: const Icon(
-                        Icons.clear,
-                        color: _C.inputIcon,
-                        size: 20,
-                      ),
-                    ),
+              suffix: AnimatedSwitcher(
+                duration: _fastAnim,
+                child: hasText
+                    ? IconButton(
+                        key: const ValueKey('clear'),
+                        tooltip: 'Clear search',
+                        onPressed: () {
+                          HapticFeedback.selectionClick();
+                          controller.clear();
+                        },
+                        icon: const Icon(
+                          Icons.clear,
+                          color: _C.inputIcon,
+                          size: 20,
+                        ),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('none')),
+              ),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildDirectoryHeader(List<Member> members) {
-    final filtering = _search.isNotEmpty;
+class _DirectoryHeader extends StatelessWidget {
+  final bool loading;
+  final int shown;
+  final int total;
+  final bool filtering;
 
+  const _DirectoryHeader({
+    required this.loading,
+    required this.shown,
+    required this.total,
+    required this.filtering,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 28, 20, 10),
+      padding: const EdgeInsets.fromLTRB(_gutter, 32, _gutter, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.baseline,
         textBaseline: TextBaseline.alphabetic,
         children: [
           Text('DIRECTORY', style: _meta(color: _C.textSecondary)),
           const Spacer(),
-          Text(
-            _loading ? '' : '${members.length}',
-            style: _display(20, color: _C.text, letterSpacing: -0.2),
-          ),
-          if (filtering && !_loading)
-            Text(
-              ' of ${_members.length}',
-              style: _body(14, color: _C.textSubtle),
+          AnimatedSwitcher(
+            duration: _fastAnim,
+            child: Text(
+              loading ? '' : '$shown',
+              key: ValueKey(loading ? -1 : shown),
+              style: _display(22, letterSpacing: -0.4),
             ),
+          ),
+          if (filtering && !loading)
+            Text(' of $total', style: _body(14, color: _C.textSubtle)),
         ],
       ),
     );
   }
+}
 
-  // Compact row: avatar, name, phone. Everything else is in the details sheet.
-  Widget _buildMemberRow(Member member, {required bool isLast}) {
+class _MemberTile extends StatelessWidget {
+  final Member member;
+  final VoidCallback onOpen;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _MemberTile({
+    required this.member,
+    required this.onOpen,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final name = member.name;
     final phone = member.phoneNumber;
+    final displayName = name.isEmpty ? 'Unnamed member' : name;
+    final displayPhone = phone.isEmpty ? 'No phone number' : phone;
 
-    return InkWell(
-      onTap: () => _showMemberDetails(member),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 8, 12),
-        decoration: BoxDecoration(
-          border: Border(
-            top: const BorderSide(color: _C.border),
-            bottom: isLast
-                ? const BorderSide(color: _C.border)
-                : BorderSide.none,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: _C.elevated,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                name.isEmpty ? '?' : name[0].toUpperCase(),
-                style: _display(18, letterSpacing: 0),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return Semantics(
+      button: true,
+      label: 'Open attendance for $displayName, $displayPhone',
+      child: Material(
+        type: MaterialType.transparency,
+        child: Ink(
+          decoration: _cardDecoration(),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(_rTile),
+            splashColor: _tint(_C.accent, 0.08),
+            highlightColor: _tint(_C.accent, 0.04),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              onOpen();
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 0, 12),
+              child: Row(
                 children: [
-                  Text(
-                    name.isEmpty ? 'Unnamed member' : name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _display(
-                      16,
-                      weight: FontWeight.w700,
-                      letterSpacing: -0.2,
+                  _InitialAvatar(name: name),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _display(
+                            16,
+                            weight: FontWeight.w700,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          displayPhone,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _body(
+                            13.5,
+                            color: phone.isEmpty
+                                ? _C.textSubtle
+                                : _C.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    phone.isEmpty ? 'No phone number' : phone,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _body(
-                      13.5,
-                      color: phone.isEmpty ? _C.textSubtle : _C.textSecondary,
+                  _MemberMenu(onEdit: onEdit, onDelete: onDelete),
+                  const Padding(
+                    padding: EdgeInsets.only(right: 12),
+                    child: Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: _C.textSubtle,
                     ),
                   ),
                 ],
               ),
             ),
-            PopupMenuButton<String>(
-              tooltip: 'Member actions',
-              color: _C.elevated,
-              surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: _C.border),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InitialAvatar extends StatelessWidget {
+  final String name;
+
+  const _InitialAvatar({required this.name});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 48,
+      height: 48,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(_tint(_C.accent, 0.1), _C.elevated),
+        borderRadius: BorderRadius.circular(_rControl),
+        border: Border.all(color: _tint(_C.accent, 0.25)),
+      ),
+      child: ExcludeSemantics(
+        child: Text(
+          name.isEmpty ? '?' : name[0].toUpperCase(),
+          style: _display(18, color: _C.accent, letterSpacing: 0),
+        ),
+      ),
+    );
+  }
+}
+
+class _MemberMenu extends StatelessWidget {
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _MemberMenu({required this.onEdit, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'Member actions',
+      color: _C.elevated,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.black.withValues(alpha: 0.3),
+      elevation: 12,
+      padding: const EdgeInsets.all(12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_rControl),
+        side: const BorderSide(color: _C.border),
+      ),
+      icon: const Icon(Icons.more_horiz, color: _C.textSecondary),
+      onSelected: (action) {
+        HapticFeedback.selectionClick();
+        if (action == 'edit') {
+          onEdit();
+        } else if (action == 'delete') {
+          onDelete();
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'edit',
+          child: Row(
+            children: [
+              const Icon(Icons.edit_outlined, size: 18, color: _C.text),
+              const SizedBox(width: 12),
+              Text('Edit', style: _body(15, color: _C.text)),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              const Icon(Icons.delete_outline, size: 18, color: _C.error),
+              const SizedBox(width: 12),
+              Text('Delete', style: _body(15, color: _C.error)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Fade + small upward slide, lightly staggered by [index] (capped).
+class _FadeSlideIn extends StatelessWidget {
+  final int index;
+  final Widget child;
+
+  const _FadeSlideIn({required this.index, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final step = index > 8 ? 8 : index;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 220 + step * 40),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, (1 - value) * 12),
+          child: child,
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Loading skeleton (shimmer without packages)
+// ---------------------------------------------------------------------------
+
+class _SlideGradient extends GradientTransform {
+  final double slide;
+
+  const _SlideGradient(this.slide);
+
+  @override
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) =>
+      Matrix4.translationValues(bounds.width * slide, 0, 0);
+}
+
+class _SkeletonTile extends StatefulWidget {
+  const _SkeletonTile();
+
+  @override
+  State<_SkeletonTile> createState() => _SkeletonTileState();
+}
+
+class _SkeletonTileState extends State<_SkeletonTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Widget _bar(double width, double height) => Container(
+    width: width,
+    height: height,
+    decoration: BoxDecoration(
+      color: _C.elevated,
+      borderRadius: BorderRadius.circular(6),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final highlight = Color.alphaBlend(_tint(_C.text, 0.08), _C.elevated);
+
+    return Semantics(
+      label: 'Loading',
+      excludeSemantics: true,
+      child: Container(
+        height: 72,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: _cardDecoration(),
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) => ShaderMask(
+            blendMode: BlendMode.srcATop,
+            shaderCallback: (rect) => LinearGradient(
+              colors: [_C.elevated, highlight, _C.elevated],
+              stops: const [0.35, 0.5, 0.65],
+              transform: _SlideGradient(_controller.value * 2 - 1),
+            ).createShader(rect),
+            child: child,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _C.elevated,
+                  borderRadius: BorderRadius.circular(_rControl),
+                ),
               ),
-              icon: const Icon(Icons.more_horiz, color: _C.textSecondary),
-              onSelected: (action) {
-                if (action == 'edit') {
-                  _openMemberForm(member: member);
-                } else if (action == 'delete') {
-                  _deleteMember(member);
-                }
-              },
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      const Icon(Icons.edit_outlined, size: 18, color: _C.text),
-                      const SizedBox(width: 10),
-                      Text('Edit', style: _body(15, color: _C.text)),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.delete_outline,
-                        size: 18,
-                        color: _C.error,
-                      ),
-                      const SizedBox(width: 10),
-                      Text('Delete', style: _body(15, color: _C.error)),
-                    ],
-                  ),
-                ),
-              ],
+              const SizedBox(width: 16),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _bar(140, 14),
+                  const SizedBox(height: 8),
+                  _bar(96, 10),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared error / empty state
+// ---------------------------------------------------------------------------
+
+class _StateView extends StatelessWidget {
+  final IconData icon;
+  final Color tone;
+  final String title;
+  final String message;
+  final Widget? action;
+
+  const _StateView({
+    required this.icon,
+    required this.tone,
+    required this.title,
+    required this.message,
+    this.action,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: _tint(tone, 0.1),
+                borderRadius: BorderRadius.circular(_rCard),
+                border: Border.all(color: _tint(tone, 0.28)),
+              ),
+              child: Icon(icon, size: 28, color: tone),
             ),
+            const SizedBox(height: 16),
+            Semantics(
+              header: true,
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                style: _display(22, letterSpacing: -0.5),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(message, textAlign: TextAlign.center, style: _body(14.5)),
+            if (action != null) ...[const SizedBox(height: 24), action!],
           ],
         ),
       ),
@@ -687,56 +988,48 @@ class _MembersScreenState extends State<MembersScreen> {
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final bool isLast;
+// ---------------------------------------------------------------------------
+// Dialogs
+// ---------------------------------------------------------------------------
 
-  const _DetailRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.isLast = false,
-  });
+class _DeleteMemberDialog extends StatelessWidget {
+  final String name;
+
+  const _DeleteMemberDialog({required this.name});
 
   @override
   Widget build(BuildContext context) {
-    final empty = value == 'Not provided';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        border: Border(
-          top: const BorderSide(color: _C.border),
-          bottom: isLast
-              ? const BorderSide(color: _C.border)
-              : BorderSide.none,
+    return AlertDialog(
+      backgroundColor: _C.surface,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.black.withValues(alpha: 0.3),
+      elevation: 16,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(_rCard),
+        side: const BorderSide(color: _C.border),
+      ),
+      title: Text('Delete member?', style: _display(24, letterSpacing: -0.5)),
+      content: Text(
+        'Are you sure you want to delete $name? '
+        'This cannot be undone.',
+        style: _body(15),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 24, 24),
+      actions: [
+        FilledButton(
+          style: _secondaryButton(),
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
         ),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: _C.accent2),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: _meta(color: _C.textSecondary)),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: _body(
-                    16,
-                    weight: FontWeight.w500,
-                    color: empty ? _C.textSubtle : _C.text,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        FilledButton(
+          style: _destructiveButton(),
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            Navigator.pop(context, true);
+          },
+          child: const Text('Delete'),
+        ),
+      ],
     );
   }
 }
@@ -751,6 +1044,13 @@ class _MemberFormDialog extends StatefulWidget {
   State<_MemberFormDialog> createState() => _MemberFormDialogState();
 }
 
+Future<Member?> showMemberEditDialog(BuildContext context, Member member) {
+  return showDialog<Member>(
+    context: context,
+    builder: (_) => _MemberFormDialog(service: MemberService(), member: member),
+  );
+}
+
 class _MemberFormDialogState extends State<_MemberFormDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
@@ -760,6 +1060,7 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
   DateTime? _baptismDate;
   DateTime? _marriageDate;
   bool _saving = false;
+  bool _closing = false;
 
   bool get _editing => widget.member != null;
 
@@ -805,12 +1106,17 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
         data: Theme.of(context).copyWith(
           colorScheme: const ColorScheme.dark(
             primary: _C.accent,
-            onPrimary: _C.bg,
+            onPrimary: _C.ink,
             surface: _C.elevated,
             onSurface: _C.text,
           ),
-          datePickerTheme: const DatePickerThemeData(
+          datePickerTheme: DatePickerThemeData(
             backgroundColor: _C.elevated,
+            surfaceTintColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(_rCard),
+              side: const BorderSide(color: _C.border),
+            ),
           ),
         ),
         child: child!,
@@ -821,100 +1127,58 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
   Future<void> _save() async {
     if (_saving || !_formKey.currentState!.validate()) return;
 
+    HapticFeedback.lightImpact();
     setState(() => _saving = true);
 
     try {
-      if (_editing) {
-        await widget.service.updateMember(
-          id: widget.member!.id,
-          name: _nameController.text,
-          dob: _dob,
-          phoneNumber: _phoneController.text,
-          baptismDate: _baptismDate,
-          marriageDate: _marriageDate,
-        );
-      } else {
-        await widget.service.createMember(
-          name: _nameController.text,
-          dob: _dob,
-          phoneNumber: _phoneController.text,
-          baptismDate: _baptismDate,
-          marriageDate: _marriageDate,
-        );
-      }
+      final savedMember = _editing
+          ? await widget.service.updateMember(
+              id: widget.member!.id,
+              name: _nameController.text,
+              dob: _dob,
+              phoneNumber: _phoneController.text,
+              baptismDate: _baptismDate,
+              marriageDate: _marriageDate,
+            )
+          : await widget.service.createMember(
+              name: _nameController.text,
+              dob: _dob,
+              phoneNumber: _phoneController.text,
+              baptismDate: _baptismDate,
+              marriageDate: _marriageDate,
+            );
 
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      _closeDialog(savedMember);
     } catch (error) {
       if (!mounted) return;
 
       _snack(context, error.toString(), error: true);
-    } finally {
-      if (mounted) setState(() => _saving = false);
+      setState(() => _saving = false);
     }
   }
 
-  Widget _label(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(text, style: _meta(color: _C.textSecondary)),
-  );
+  void _closeDialog(Member? member) {
+    if (_closing) return;
+    setState(() => _closing = true);
+    Navigator.of(context).pop<Member>(member);
+  }
 
   Widget _dateField({
     required String label,
     required DateTime? value,
-    required VoidCallback onTap,
-    required VoidCallback onClear,
+    required ValueChanged<DateTime?> onChanged,
+    bool allowFutureDates = true,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _label(label),
-        Material(
-          color: _C.inputBg,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
-            onTap: _saving ? null : onTap,
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 52),
-              padding: const EdgeInsets.only(left: 14, right: 4),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _C.inputBorder),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.calendar_month_outlined,
-                    color: _C.inputIcon,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _formatDate(value, empty: 'Select date'),
-                      style: _body(
-                        15,
-                        color: value == null ? _C.inputHint : _C.inputText,
-                      ),
-                    ),
-                  ),
-                  if (value != null)
-                    IconButton(
-                      tooltip: 'Clear $label'.toLowerCase(),
-                      onPressed: _saving ? null : onClear,
-                      icon: const Icon(
-                        Icons.clear,
-                        color: _C.inputIcon,
-                        size: 18,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
+    return _DateField(
+      label: label,
+      value: value,
+      enabled: !_saving,
+      onTap: () async {
+        final date = await _pickDate(value, allowFutureDates: allowFutureDates);
+        if (date != null && mounted) onChanged(date);
+      },
+      onClear: () => onChanged(null),
     );
   }
 
@@ -923,222 +1187,236 @@ class _MemberFormDialogState extends State<_MemberFormDialog> {
     final screenWidth = MediaQuery.of(context).size.width;
     final contentWidth = screenWidth - 112 < 420 ? screenWidth - 112 : 420.0;
 
-    return AlertDialog(
-      backgroundColor: _C.surface,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: _C.border),
-      ),
-      titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _editing ? 'EDIT RECORD' : 'NEW RECORD',
-            style: _meta(color: _C.accent),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _editing ? 'Edit member' : 'Add member',
-            style: _display(26, letterSpacing: -0.6),
-          ),
-        ],
-      ),
-      content: SizedBox(
-        width: contentWidth,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(top: 20),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _label('FULL NAME *'),
-                TextFormField(
-                  controller: _nameController,
-                  textCapitalization: TextCapitalization.words,
-                  cursorColor: _C.inputFocus,
-                  style: _body(15, color: _C.inputText),
-                  decoration: _inputDecoration(
-                    hint: 'Name',
-                    icon: Icons.person_outline,
+    return PopScope(
+      canPop: !_saving && !_closing,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop && mounted && !_closing) {
+          setState(() => _closing = true);
+        }
+      },
+      child: AlertDialog(
+        backgroundColor: _C.surface,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.black.withValues(alpha: 0.3),
+        elevation: 16,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(_rCard),
+          side: const BorderSide(color: _C.border),
+        ),
+        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        title: _FormHeader(editing: _editing),
+        content: SizedBox(
+          width: contentWidth,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(top: 24),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _FieldLabel('FULL NAME *'),
+                  TextFormField(
+                    controller: _nameController,
+                    textCapitalization: TextCapitalization.words,
+                    cursorColor: _C.inputFocus,
+                    style: _body(15, color: _C.inputText),
+                    decoration: _inputDecoration(
+                      hint: 'Name',
+                      icon: Icons.person_outline,
+                    ),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Name is required'
+                        : null,
                   ),
-                  validator: (value) => value == null || value.trim().isEmpty
-                      ? 'Name is required'
-                      : null,
-                ),
-                const SizedBox(height: 18),
-                _label('PHONE NUMBER'),
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  cursorColor: _C.inputFocus,
-                  style: _body(15, color: _C.inputText),
-                  decoration: _inputDecoration(
-                    hint: 'Optional',
-                    icon: Icons.phone_outlined,
+                  const SizedBox(height: 16),
+                  const _FieldLabel('PHONE NUMBER'),
+                  TextFormField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    cursorColor: _C.inputFocus,
+                    style: _body(15, color: _C.inputText),
+                    decoration: _inputDecoration(
+                      hint: 'Optional',
+                      icon: Icons.phone_outlined,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 18),
-                _dateField(
-                  label: 'DATE OF BIRTH',
-                  value: _dob,
-                  onTap: () async {
-                    final date = await _pickDate(_dob);
-                    if (date != null && mounted) {
-                      setState(() => _dob = date);
-                    }
-                  },
-                  onClear: () => setState(() => _dob = null),
-                ),
-                const SizedBox(height: 18),
-                _dateField(
-                  label: 'BAPTISM DATE',
-                  value: _baptismDate,
-                  onTap: () async {
-                    final date = await _pickDate(_baptismDate);
-                    if (date != null && mounted) {
-                      setState(() => _baptismDate = date);
-                    }
-                  },
-                  onClear: () => setState(() => _baptismDate = null),
-                ),
-                const SizedBox(height: 18),
-                _dateField(
-                  label: 'MARRIAGE DATE',
-                  value: _marriageDate,
-                  onTap: () async {
-                    final date = await _pickDate(
-                      _marriageDate,
-                      allowFutureDates: false,
-                    );
-                    if (date != null && mounted) {
-                      setState(() => _marriageDate = date);
-                    }
-                  },
-                  onClear: () => setState(() => _marriageDate = null),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  _dateField(
+                    label: 'DATE OF BIRTH',
+                    value: _dob,
+                    onChanged: (date) => setState(() => _dob = date),
+                  ),
+                  const SizedBox(height: 16),
+                  _dateField(
+                    label: 'BAPTISM DATE',
+                    value: _baptismDate,
+                    onChanged: (date) => setState(() => _baptismDate = date),
+                  ),
+                  const SizedBox(height: 16),
+                  _dateField(
+                    label: 'MARRIAGE DATE',
+                    value: _marriageDate,
+                    allowFutureDates: false,
+                    onChanged: (date) => setState(() => _marriageDate = date),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 24, 24),
+        actions: [
+          FilledButton(
+            style: _secondaryButton(),
+            onPressed: _saving || _closing ? null : () => _closeDialog(null),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: _primaryButton(),
+            onPressed: _saving || _closing ? null : _save,
+            child: AnimatedSwitcher(
+              duration: _fastAnim,
+              child: _saving
+                  ? const SizedBox(
+                      key: ValueKey('saving'),
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: _C.ink,
+                      ),
+                    )
+                  : Text(
+                      _editing ? 'Save changes' : 'Add member',
+                      key: const ValueKey('label'),
+                    ),
+            ),
+          ),
+        ],
       ),
-      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 24, 20),
-      actions: [
-        TextButton(
-          style: _quietButton(),
-          onPressed: _saving ? null : () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
+    );
+  }
+}
+
+class _FormHeader extends StatelessWidget {
+  final bool editing;
+
+  const _FormHeader({required this.editing});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          editing ? 'EDIT RECORD' : 'NEW RECORD',
+          style: _meta(color: _C.accent),
         ),
-        FilledButton(
-          style: _primaryButton(),
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: _C.bg,
-                  ),
-                )
-              : Text(_editing ? 'Save changes' : 'Add member'),
+        const SizedBox(height: 8),
+        Text(
+          editing ? 'Edit member' : 'Add member',
+          style: _display(28, letterSpacing: -0.8),
         ),
       ],
     );
   }
 }
 
-class _ErrorView extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
+class _FieldLabel extends StatelessWidget {
+  final String text;
 
-  const _ErrorView({required this.message, required this.onRetry});
+  const _FieldLabel(this.text);
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off_outlined, size: 40, color: _C.error),
-            const SizedBox(height: 14),
-            Text(
-              'Could not load members',
-              style: _display(20, letterSpacing: -0.3),
-            ),
-            const SizedBox(height: 8),
-            Text(message, textAlign: TextAlign.center, style: _body(14)),
-            const SizedBox(height: 20),
-            FilledButton(
-              style: _primaryButton(),
-              onPressed: onRetry,
-              child: const Text('Try again'),
-            ),
-          ],
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(text, style: _meta(color: _C.textSecondary)),
     );
   }
 }
 
-class _EmptyView extends StatelessWidget {
-  final bool searching;
-  final VoidCallback onAdd;
+class _DateField extends StatelessWidget {
+  final String label;
+  final DateTime? value;
+  final bool enabled;
+  final VoidCallback onTap;
+  final VoidCallback onClear;
 
-  const _EmptyView({required this.searching, required this.onAdd});
+  const _DateField({
+    required this.label,
+    required this.value,
+    required this.enabled,
+    required this.onTap,
+    required this.onClear,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: _C.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _C.border),
-              ),
-              child: Icon(
-                searching ? Icons.search_off : Icons.people_outline,
-                size: 28,
-                color: _C.accent,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FieldLabel(label),
+        Semantics(
+          button: true,
+          label: '$label, ${_formatDate(value, empty: 'not set')}',
+          excludeSemantics: true,
+          onTap: enabled ? onTap : null,
+          child: Material(
+            color: _C.inputBg,
+            borderRadius: BorderRadius.circular(_rControl),
+            child: InkWell(
+              onTap: enabled
+                  ? () {
+                      HapticFeedback.selectionClick();
+                      onTap();
+                    }
+                  : null,
+              borderRadius: BorderRadius.circular(_rControl),
+              splashColor: _tint(_C.inputFocus, 0.12),
+              highlightColor: _tint(_C.inputFocus, 0.06),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 52),
+                padding: const EdgeInsets.only(left: 16, right: 4),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(_rControl),
+                  border: Border.all(color: _C.inputBorder),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_month_outlined,
+                      color: _C.inputIcon,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _formatDate(value, empty: 'Select date'),
+                        style: _body(
+                          15,
+                          color: value == null ? _C.inputHint : _C.inputText,
+                        ),
+                      ),
+                    ),
+                    if (value != null)
+                      IconButton(
+                        tooltip: 'Clear $label'.toLowerCase(),
+                        onPressed: enabled ? onClear : null,
+                        icon: const Icon(
+                          Icons.clear,
+                          color: _C.inputIcon,
+                          size: 18,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              searching ? 'No matching members' : 'No members yet',
-              style: _display(21, letterSpacing: -0.4),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              searching
-                  ? 'Try another name or phone number.'
-                  : 'Add your first church member to get started.',
-              textAlign: TextAlign.center,
-              style: _body(14.5),
-            ),
-            if (!searching) ...[
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                style: _primaryButton(),
-                onPressed: onAdd,
-                icon: const Icon(Icons.person_add_alt_1, size: 20),
-                label: const Text('Add member'),
-              ),
-            ],
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

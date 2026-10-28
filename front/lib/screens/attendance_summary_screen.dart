@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../models/member.dart';
 import '../services/attendance_service.dart';
 import '../services/attendance_report_service.dart';
 import '../services/member_service.dart';
 import '../utils/attendance_chart_data.dart';
+import 'members_screen.dart';
+
+part 'attendance_details_screen.dart';
 
 // ---------------------------------------------------------------------------
 // Design tokens. Same values as the Add Attendance screen; move both copies
@@ -82,7 +87,7 @@ class _T {
 }
 
 // ---------------------------------------------------------------------------
-// Shared helpers
+// Shared helpers (also used by attendance_details_screen.dart)
 // ---------------------------------------------------------------------------
 Color _stateColor(String status) {
   switch (status.toLowerCase()) {
@@ -285,7 +290,10 @@ Widget _statStrip(int present, int absent, int unmarked) {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$value', style: _T.number(30, color: color)),
+          Text(
+            '$value',
+            style: _T.number(label == 'Present' ? 34 : 30, color: color),
+          ),
           const SizedBox(height: 8),
           Text(
             label,
@@ -349,6 +357,106 @@ class _StatusTag extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+// Summary-screen domain helpers
+// ---------------------------------------------------------------------------
+
+typedef _Json = Map<String, dynamic>;
+
+/// Display name for a member map coming from the API.
+String _summaryMemberName(_Json member) {
+  final value =
+      (member['fullName'] ?? member['name'] ?? member['firstName'] ?? '')
+          .toString()
+          .trim();
+  return value.isEmpty ? 'Unnamed member' : value;
+}
+
+String? _summaryMemberId(_Json member) {
+  final value = (member['_id'] ?? member['id'] ?? member['memberId'])
+      ?.toString()
+      .trim();
+  return value == null || value.isEmpty ? null : value;
+}
+
+const _shortMonths = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+const _longMonths = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+String _summaryFormatDate(String value) {
+  final date = DateTime.tryParse(value);
+  if (date == null) return value;
+  return '${date.day} ${_shortMonths[date.month - 1]} ${date.year}';
+}
+
+/// Members of one week, bucketed by status once instead of on every build.
+class _WeekStats {
+  const _WeekStats._({
+    required this.present,
+    required this.absent,
+    required this.unmarked,
+  });
+
+  static const empty = _WeekStats._(present: [], absent: [], unmarked: []);
+
+  factory _WeekStats.from(List<_Json> members) {
+    final present = <_Json>[];
+    final absent = <_Json>[];
+    final unmarked = <_Json>[];
+
+    for (final member in members) {
+      switch (member['status']?.toString().trim().toLowerCase()) {
+        case 'present':
+          present.add(member);
+        case 'absent':
+          absent.add(member);
+        default:
+          unmarked.add(member);
+      }
+    }
+
+    int byName(_Json a, _Json b) => _summaryMemberName(
+      a,
+    ).toLowerCase().compareTo(_summaryMemberName(b).toLowerCase());
+    present.sort(byName);
+    absent.sort(byName);
+
+    return _WeekStats._(present: present, absent: absent, unmarked: unmarked);
+  }
+
+  final List<_Json> present;
+  final List<_Json> absent;
+  final List<_Json> unmarked;
+
+  int get total => present.length + absent.length + unmarked.length;
+}
+
+// ---------------------------------------------------------------------------
 // Attendance summary
 // ---------------------------------------------------------------------------
 class AttendanceSummaryScreen extends StatefulWidget {
@@ -366,16 +474,32 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
   late int _selectedYear;
   bool _loadingSummary = false;
   bool _loadingWeek = false;
-  bool _generatingReport = false;
-  String? _reportInProgress;
+  String? _reportInProgress; // 'weekly' | 'monthly' | null
 
   String? _error;
   String? _weekError;
 
-  List<Map<String, dynamic>> _records = [];
-  List<Map<String, dynamic>> _weeklyMembers = [];
+  List<_Json> _records = [];
+  _WeekStats _stats = _WeekStats.empty;
 
   String? _selectedDate;
+  int? _selectedWeekNumber;
+  int _weekRequestId = 0;
+
+  bool get _generatingReport => _reportInProgress != null;
+
+  int? get _displayedWeekNumber {
+    if (_selectedWeekNumber != null) return _selectedWeekNumber;
+    final selectedDate = _selectedDate;
+    if (selectedDate == null) return null;
+
+    for (final record in _records) {
+      if (record['date']?.toString() == selectedDate) {
+        return int.tryParse(record['weekNumber']?.toString() ?? '');
+      }
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -384,22 +508,27 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
     _loadSummary();
   }
 
+  // ---- Data ---------------------------------------------------------------
+
   Future<void> _loadSummary() async {
+    _weekRequestId++;
     setState(() {
       _loadingSummary = true;
+      _loadingWeek = false;
       _error = null;
       _weekError = null;
       _records = [];
       _selectedDate = null;
-      _weeklyMembers = [];
+      _selectedWeekNumber = null;
+      _stats = _WeekStats.empty;
     });
 
     try {
       final result = await _service.getAttendanceSummary(year: _selectedYear);
-      final data = Map<String, dynamic>.from(result['data'] as Map);
+      final data = _Json.from(result['data'] as Map);
       final records =
           (data['records'] as List<dynamic>? ?? [])
-              .map((item) => Map<String, dynamic>.from(item as Map))
+              .map((item) => _Json.from(item as Map))
               .toList()
             ..sort(
               (a, b) => (b['date']?.toString() ?? '').compareTo(
@@ -417,12 +546,9 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
         _loadingSummary = false;
       });
 
-      if (_selectedDate != null) {
-        await _loadWeek(_selectedDate!);
-      }
+      if (_selectedDate != null) await _loadWeek(_selectedDate!);
     } catch (error) {
       if (!mounted) return;
-
       setState(() {
         _error = _message(error);
         _loadingSummary = false;
@@ -431,30 +557,31 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
   }
 
   Future<void> _loadWeek(String date) async {
+    final requestId = ++_weekRequestId;
     setState(() {
       _loadingWeek = true;
       _weekError = null;
-      _weeklyMembers = [];
+      _stats = _WeekStats.empty;
+      _selectedWeekNumber = null;
     });
 
     try {
       final result = await _service.getAttendance(date);
-      final data = Map<String, dynamic>.from(result['data'] as Map);
-      final rawMembers = data['members'] as List<dynamic>? ?? [];
-
-      final weeklyMembers = rawMembers
-          .map((item) => Map<String, dynamic>.from(item as Map))
+      final data = _Json.from(result['data'] as Map);
+      final members = (data['members'] as List<dynamic>? ?? [])
+          .map((item) => _Json.from(item as Map))
           .toList();
+      final weekNumber = int.tryParse(data['weekNumber']?.toString() ?? '');
 
-      if (!mounted) return;
+      if (!mounted || requestId != _weekRequestId) return;
 
       setState(() {
-        _weeklyMembers = weeklyMembers;
+        _stats = _WeekStats.from(members);
+        _selectedWeekNumber = weekNumber;
         _loadingWeek = false;
       });
     } catch (error) {
-      if (!mounted) return;
-
+      if (!mounted || requestId != _weekRequestId) return;
       setState(() {
         _weekError = _message(error);
         _loadingWeek = false;
@@ -462,54 +589,163 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
     }
   }
 
-  String _memberName(Map<String, dynamic> member) {
-    final value =
-        (member['fullName'] ?? member['name'] ?? member['firstName'] ?? '')
+  String _message(Object error) =>
+      error.toString().replaceFirst('Exception: ', '');
+
+  // ---- Actions ------------------------------------------------------------
+
+  void _openMemberAttendanceDetails(_Json member) {
+    final memberId = _summaryMemberId(member);
+    if (memberId == null) {
+      _toast('Attendance details are unavailable for this member.');
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MemberAttendanceDetailScreen(
+          memberId: memberId,
+          memberName: _summaryMemberName(member),
+          memberDetails: member,
+          year: _selectedYear,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _copyPhoneNumber(String phone) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: phone));
+      if (mounted) _toast('Phone number copied.');
+    } catch (error) {
+      if (mounted) _toast('Unable to copy the phone number.');
+    }
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          backgroundColor: _C.elevated,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: _C.border),
+          ),
+          content: Text(
+            message,
+            style: _T.body(14, weight: FontWeight.w500, color: _C.text),
+          ),
+        ),
+      );
+  }
+
+  Future<void> _runReport({
+    required String kind,
+    required String label,
+    required Future<ReportShareOutcome> Function() task,
+  }) async {
+    if (_generatingReport) return;
+    setState(() => _reportInProgress = kind);
+
+    try {
+      final outcome = await task();
+      if (!mounted) return;
+      _toast(switch (outcome) {
+        ReportShareOutcome.shared => '$label Excel report is ready to share.',
+        ReportShareOutcome.dismissed => 'Report sharing was cancelled.',
+        ReportShareOutcome.unavailable =>
+          'The share sheet is unavailable on this device.',
+      });
+    } catch (error) {
+      if (!mounted) return;
+      _toast(
+        error
             .toString()
-            .trim();
-
-    return value.isEmpty ? 'Unnamed member' : value;
+            .replaceFirst('Exception: ', '')
+            .replaceFirst('FormatException: ', ''),
+      );
+    } finally {
+      if (mounted) setState(() => _reportInProgress = null);
+    }
   }
 
-  String _message(Object error) {
-    return error.toString().replaceFirst('Exception: ', '');
+  Future<void> _downloadWeeklyReport() {
+    final date = _selectedDate;
+    if (date == null) return Future.value();
+    return _runReport(
+      kind: 'weekly',
+      label: 'Weekly',
+      task: () => _reportService.shareWeeklyReport(date: date),
+    );
   }
 
-  String _formatDate(String value) {
-    final date = DateTime.tryParse(value);
-
-    if (date == null) return value;
-
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  Future<void> _downloadMonthlyReport(int month) {
+    final year = _selectedYear;
+    return _runReport(
+      kind: 'monthly',
+      label: 'Monthly',
+      task: () => _reportService.shareMonthlyReport(year: year, month: month),
+    );
   }
 
-  int _countStatus(String status) {
-    return _weeklyMembers.where((member) {
-      return (member['status']?.toString().toLowerCase() ?? 'unmarked') ==
-          status;
-    }).length;
+  Future<void> _chooseMonthForExport() async {
+    if (_generatingReport) return;
+    var month = DateTime.now().month;
+
+    final chosen = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: _C.surface,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: _C.border),
+          ),
+          title: Text('Choose report month', style: _T.display(20)),
+          content: _labeled(
+            'Month',
+            _lightDropdown<int>(
+              value: month,
+              items: [
+                for (var i = 0; i < 12; i++)
+                  DropdownMenuItem<int>(
+                    value: i + 1,
+                    child: Text(_longMonths[i]),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) setDialogState(() => month = value);
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: _C.text2,
+                textStyle: _T.body(15, weight: FontWeight.w700),
+              ),
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: _accentButton().copyWith(
+                minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
+              ),
+              onPressed: () => Navigator.pop(dialogContext, month),
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (chosen != null && mounted) await _downloadMonthlyReport(chosen);
   }
 
-  int get _presentCount => _countStatus('present');
-
-  int get _absentCount => _countStatus('absent');
-
-  int get _unmarkedCount => _countStatus('unmarked');
+  // ---- Build --------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -535,32 +771,18 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
               onRefresh: _loadSummary,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
                 children: [
                   Text(
                     'Attendance summary',
                     style: _T.display(34, height: 1.05, letterSpacing: -1),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Review any recorded Sunday, open a member’s history or '
-                    'export a report.',
-                    style: _T.body(15, height: 1.4),
-                  ),
                   const SizedBox(height: 24),
-                  _labeled('Attendance year', _yearField()),
-                  const SizedBox(height: 16),
-                  _labeled('Recorded week', _weekSelector()),
+                  _filtersCard(),
+                  const SizedBox(height: 28),
+                  _weekSection(),
                   const SizedBox(height: 32),
-                  _heading('Weekly attendance'),
-                  const SizedBox(height: 14),
-                  _statStrip(_presentCount, _absentCount, _unmarkedCount),
-                  const SizedBox(height: 14),
-                  _weeklyAttendanceTable(),
-                  const SizedBox(height: 32),
-                  _memberHistoryBlock(),
-                  const SizedBox(height: 32),
-                  _reportsBlock(),
+                  _reportsCard(),
                 ],
               ),
             ),
@@ -570,20 +792,36 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
     );
   }
 
+  // ---- Filters ------------------------------------------------------------
+
+  Widget _filtersCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _C.border),
+      ),
+      child: Column(
+        children: [
+          _labeled('Attendance year', _yearField()),
+          const SizedBox(height: 16),
+          _labeled('Recorded week', _weekSelector()),
+        ],
+      ),
+    );
+  }
+
   Widget _yearField() {
     final currentYear = DateTime.now().year;
-    final years = List.generate(11, (index) => currentYear - 5 + index);
+    final years = List.generate(11, (i) => currentYear - 5 + i);
 
     return _lightDropdown<int>(
       value: years.contains(_selectedYear) ? _selectedYear : currentYear,
-      items: years
-          .map(
-            (year) => DropdownMenuItem<int>(
-              value: year,
-              child: Text(year.toString()),
-            ),
-          )
-          .toList(),
+      items: [
+        for (final year in years)
+          DropdownMenuItem<int>(value: year, child: Text('$year')),
+      ],
       onChanged: _loadingSummary
           ? null
           : (year) {
@@ -595,13 +833,49 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
   }
 
   Widget _weekSelector() {
-    if (_loadingSummary && _records.isEmpty) {
-      return _loadingState();
-    }
+    final hint = _loadingSummary
+        ? 'Loading weeks...'
+        : _error != null
+        ? 'Could not load weeks'
+        : _records.isEmpty
+        ? 'No weeks recorded for $_selectedYear'
+        : 'Choose a recorded week';
+
+    final validDates = _records.map((r) => r['date']?.toString() ?? '').toSet();
+    final enabled = !_loadingSummary && _records.isNotEmpty;
+
+    return _lightDropdown<String>(
+      value: validDates.contains(_selectedDate) ? _selectedDate : null,
+      hint: hint,
+      items: [
+        for (final record in _records)
+          DropdownMenuItem<String>(
+            value: record['date']?.toString() ?? '',
+            child: Text(
+              'Week ${record['weekNumber'] ?? '—'} · '
+              '${_summaryFormatDate(record['date']?.toString() ?? '')}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: enabled
+          ? (date) {
+              if (date == null) return;
+              setState(() => _selectedDate = date);
+              _loadWeek(date);
+            }
+          : null,
+    );
+  }
+
+  // ---- Week content (single state gate) -----------------------------------
+
+  Widget _weekSection() {
+    if (_loadingSummary || _loadingWeek) return _loadingState();
 
     if (_error != null) {
-      return _messageCard(
-        _error!,
+      return _InfoCard(
+        message: _error!,
         icon: Icons.cloud_off_rounded,
         iconColor: _C.error,
         actionLabel: 'Retry',
@@ -609,154 +883,89 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
       );
     }
 
-    if (_records.isEmpty) {
-      return _messageCard(
-        'No attendance weeks found for $_selectedYear.',
+    final date = _selectedDate;
+
+    if (_weekError != null) {
+      return _InfoCard(
+        message: _weekError!,
+        icon: Icons.cloud_off_rounded,
+        iconColor: _C.error,
+        actionLabel: date == null ? null : 'Retry',
+        onAction: date == null ? null : () => _loadWeek(date),
+      );
+    }
+
+    if (date == null || _records.isEmpty) {
+      return const _InfoCard(
+        message: 'Select a recorded week to see who attended.',
         icon: Icons.event_busy_rounded,
       );
     }
 
-    final validDates = _records
-        .map((record) => record['date']?.toString() ?? '')
-        .toSet();
+    final week = _displayedWeekNumber;
+    final weekLabel = week == null ? 'Selected week' : 'Week $week';
 
-    return _lightDropdown<String>(
-      value: validDates.contains(_selectedDate) ? _selectedDate : null,
-      hint: 'Choose a recorded week',
-      items: _records.map((record) {
-        final date = record['date']?.toString() ?? '';
-        final week = record['weekNumber']?.toString() ?? '—';
-
-        return DropdownMenuItem<String>(
-          value: date,
-          child: Text(
-            'Week $week · ${_formatDate(date)}',
-            overflow: TextOverflow.ellipsis,
-          ),
-        );
-      }).toList(),
-      onChanged: (date) {
-        if (date == null) return;
-
-        setState(() => _selectedDate = date);
-        _loadWeek(date);
-      },
-    );
-  }
-
-  Widget _weeklyAttendanceTable() {
-    if (_loadingWeek) {
-      return _loadingState();
-    }
-
-    if (_weekError != null) {
-      return _messageCard(
-        _weekError!,
-        icon: Icons.cloud_off_rounded,
-        iconColor: _C.error,
-        actionLabel: 'Retry',
-        onAction: _selectedDate == null
-            ? null
-            : () => _loadWeek(_selectedDate!),
-      );
-    }
-
-    if (_selectedDate == null || _records.isEmpty) {
-      return _messageCard(
-        'Select a year with recorded attendance to view the weekly table.',
-        icon: Icons.table_chart_outlined,
-      );
-    }
-
-    if (_weeklyMembers.isEmpty) {
-      return _messageCard(
-        'No members were returned for this attendance date.',
-        icon: Icons.people_outline_rounded,
-      );
-    }
-
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: _C.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _C.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _formatDate(_selectedDate!),
-                    style: _T.display(18),
-                  ),
-                ),
-                Text('${_weeklyMembers.length} members', style: _T.body(13)),
-              ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _statStrip(
+          _stats.present.length,
+          _stats.absent.length,
+          _stats.unmarked.length,
+        ),
+        const SizedBox(height: 32),
+        _SectionHeader(
+          title: 'Absentees',
+          count: _stats.absent.length,
+          color: _C.error,
+        ),
+        const SizedBox(height: 14),
+        if (_stats.absent.isEmpty)
+          _InfoCard(
+            message: 'No absentees for $weekLabel.',
+            icon: Icons.check_circle_outline_rounded,
+            iconColor: _C.success,
+          )
+        else
+          for (final member in _stats.absent) ...[
+            _AbsenteeTile(
+              member: member,
+              name: _summaryMemberName(member),
+              phone: member['phoneNumber']?.toString().trim() ?? '',
+              onOpen: _openMemberAttendanceDetails,
+              onCopyPhone: _copyPhoneNumber,
             ),
-          ),
-          const Divider(height: 1, color: _C.border),
-          Container(
-            color: _C.bg2,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            child: Row(
-              children: [
-                Expanded(child: Text('Member name', style: _T.label())),
-                Text('Attendance', style: _T.label()),
-              ],
-            ),
-          ),
-          for (int i = 0; i < _weeklyMembers.length; i++) ...[
-            if (i > 0) const Divider(height: 1, color: _C.border),
-            _weeklyRow(_weeklyMembers[i]),
+            const SizedBox(height: 10),
           ],
-        ],
-      ),
+        const SizedBox(height: 22),
+        _PresentSection(
+          key: ValueKey('present-$date'),
+          members: _stats.present.map(_summaryMemberName).toList(),
+        ),
+      ],
     );
   }
 
-  Widget _weeklyRow(Map<String, dynamic> member) {
-    final name = _memberName(member);
-    final status = (member['status']?.toString() ?? 'unmarked').toLowerCase();
+  // ---- Reports ------------------------------------------------------------
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _T.body(15, weight: FontWeight.w600, color: _C.text),
-            ),
-          ),
-          const SizedBox(width: 12),
-          _StatusTag(status),
-        ],
-      ),
-    );
-  }
+  Widget _reportsCard() {
+    final weeklyBusy = _reportInProgress == 'weekly';
+    final monthlyBusy = _reportInProgress == 'monthly';
 
-  Widget _memberHistoryBlock() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _C.surface,
-        borderRadius: BorderRadius.circular(16),
+        color: _C.bg2,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _C.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _heading('Member history'),
+          _heading('Download reports'),
           const SizedBox(height: 6),
           Text(
-            'Browse members and view their attendance charts.',
+            'Export attendance to Excel for a selected week or month.',
             style: _T.body(15, height: 1.4),
           ),
           const SizedBox(height: 18),
@@ -764,244 +973,354 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
             width: double.infinity,
             child: FilledButton.icon(
               style: _accentButton(),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        MemberHistoryScreen(initialYear: _selectedYear),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.people_outline_rounded),
-              label: const Text('View all members'),
+              onPressed:
+                  _selectedDate == null || _loadingWeek || _generatingReport
+                  ? null
+                  : _downloadWeeklyReport,
+              icon: weeklyBusy
+                  ? _spinner()
+                  : const Icon(Icons.download_rounded),
+              label: Text(
+                weeklyBusy
+                    ? 'Preparing weekly report...'
+                    : 'Download weekly Excel report',
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: _outlineButton(),
+              onPressed: _loadingSummary || _generatingReport
+                  ? null
+                  : _chooseMonthForExport,
+              icon: monthlyBusy
+                  ? _spinner(color: _C.accent)
+                  : const Icon(Icons.calendar_month_rounded),
+              label: Text(
+                monthlyBusy
+                    ? 'Preparing monthly report...'
+                    : 'Download monthly Excel report',
+              ),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _reportsBlock() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _heading('Download reports'),
-        const SizedBox(height: 6),
-        Text(
-          'Export attendance to Excel for a selected week or month.',
-          style: _T.body(15, height: 1.4),
-        ),
-        const SizedBox(height: 16),
-        _downloadButtons(),
-      ],
-    );
-  }
+// ---------------------------------------------------------------------------
+// Presentational widgets
+// ---------------------------------------------------------------------------
 
-  Widget _downloadButtons() {
-    return Column(
+/// Title with a coloured count pill.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.title,
+    required this.count,
+    required this.color,
+  });
+
+  final String title;
+  final int count;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
       children: [
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            style: _quietButton(),
-            onPressed:
-                _selectedDate == null || _loadingWeek || _generatingReport
-                ? null
-                : _downloadWeeklyReport,
-            icon: _reportInProgress == 'weekly'
-                ? _spinner(color: _C.accent)
-                : const Icon(Icons.download_rounded),
-            label: Text(
-              _reportInProgress == 'weekly'
-                  ? 'Preparing weekly report...'
-                  : 'Download weekly Excel report',
-            ),
+        _heading(title),
+        const SizedBox(width: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(20),
           ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            style: _outlineButton(),
-            onPressed: _loadingSummary || _generatingReport
-                ? null
-                : _chooseMonthForExport,
-            icon: _reportInProgress == 'monthly'
-                ? _spinner(color: _C.accent)
-                : const Icon(Icons.calendar_month_rounded),
-            label: Text(
-              _reportInProgress == 'monthly'
-                  ? 'Preparing monthly report...'
-                  : 'Download monthly Excel report',
-            ),
+          child: Text(
+            '$count',
+            style: _T.body(13, weight: FontWeight.w800, color: color),
           ),
         ),
       ],
     );
   }
+}
 
-  Future<void> _chooseMonthForExport() async {
-    if (_generatingReport) return;
-    int month = DateTime.now().month;
+/// Absentee row: red-tinted so it reads as "absent" at a glance.
+class _AbsenteeTile extends StatelessWidget {
+  const _AbsenteeTile({
+    required this.member,
+    required this.name,
+    required this.phone,
+    required this.onOpen,
+    required this.onCopyPhone,
+  });
 
-    final chosen = await showDialog<int>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: _C.surface,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: _C.border),
-          ),
-          title: Text('Choose report month', style: _T.display(20)),
-          content: _labeled(
-            'Month',
-            _lightDropdown<int>(
-              value: month,
-              items: List.generate(
-                12,
-                (index) => DropdownMenuItem<int>(
-                  value: index + 1,
-                  child: Text(_monthName(index + 1)),
-                ),
-              ),
-              onChanged: (value) {
-                if (value != null) {
-                  setDialogState(() => month = value);
-                }
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: _C.text2,
-                textStyle: _T.body(15, weight: FontWeight.w700),
-              ),
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              style: _accentButton().copyWith(
-                minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
-              ),
-              onPressed: () => Navigator.pop(dialogContext, month),
-              child: const Text('Continue'),
-            ),
-          ],
-        ),
-      ),
-    );
+  final _Json member;
+  final String name;
+  final String phone;
+  final ValueChanged<_Json> onOpen;
+  final ValueChanged<String> onCopyPhone;
 
-    if (chosen != null && mounted) {
-      await _downloadMonthlyReport(chosen);
-    }
-  }
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(16);
 
-  Future<void> _downloadWeeklyReport() async {
-    final date = _selectedDate;
-    if (date == null || _generatingReport) return;
-
-    setState(() {
-      _generatingReport = true;
-      _reportInProgress = 'weekly';
-    });
-    try {
-      final outcome = await _reportService.shareWeeklyReport(date: date);
-      if (!mounted) return;
-      _showReportOutcome(outcome, 'Weekly');
-    } catch (error) {
-      if (!mounted) return;
-      _showReportError(error);
-    } finally {
-      if (mounted) {
-        setState(() {
-          _generatingReport = false;
-          _reportInProgress = null;
-        });
-      }
-    }
-  }
-
-  Future<void> _downloadMonthlyReport(int month) async {
-    if (_generatingReport) return;
-    final year = _selectedYear;
-
-    setState(() {
-      _generatingReport = true;
-      _reportInProgress = 'monthly';
-    });
-    try {
-      final outcome = await _reportService.shareMonthlyReport(
-        year: year,
-        month: month,
-      );
-      if (!mounted) return;
-      _showReportOutcome(outcome, 'Monthly');
-    } catch (error) {
-      if (!mounted) return;
-      _showReportError(error);
-    } finally {
-      if (mounted) {
-        setState(() {
-          _generatingReport = false;
-          _reportInProgress = null;
-        });
-      }
-    }
-  }
-
-  void _showReportOutcome(ReportShareOutcome outcome, String reportType) {
-    final message = switch (outcome) {
-      ReportShareOutcome.shared =>
-        '$reportType Excel report is ready to share.',
-      ReportShareOutcome.dismissed => 'Report sharing was cancelled.',
-      ReportShareOutcome.unavailable =>
-        'The share sheet is unavailable on this device.',
-    };
-    _showReportMessage(message);
-  }
-
-  void _showReportError(Object error) {
-    _showReportMessage(
-      error
-          .toString()
-          .replaceFirst('Exception: ', '')
-          .replaceFirst('FormatException: ', ''),
-    );
-  }
-
-  void _showReportMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: _C.elevated,
-        behavior: SnackBarBehavior.floating,
+    return Semantics(
+      button: true,
+      label: 'View attendance details for $name',
+      child: Material(
+        color: Color.alphaBlend(_C.error.withValues(alpha: 0.07), _C.surface),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: _C.border),
+          borderRadius: radius,
+          side: BorderSide(color: _C.error.withValues(alpha: 0.28)),
         ),
-        content: Text(
-          message,
-          style: _T.body(14, weight: FontWeight.w500, color: _C.text),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => onOpen(member),
+          splashColor: _C.error.withValues(alpha: 0.12),
+          highlightColor: _C.error.withValues(alpha: 0.06),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                _avatar(),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _T.body(
+                          16,
+                          weight: FontWeight.w700,
+                          color: _C.text,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        phone.isEmpty ? 'No phone number' : phone,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _T.body(
+                          13,
+                          color: phone.isEmpty ? _C.textSubtle : _C.text2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                if (phone.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Copy phone number',
+                    onPressed: () => onCopyPhone(phone),
+                    color: _C.text2,
+                    icon: const Icon(Icons.copy_rounded),
+                  ),
+                const _StatusTag('absent'),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _messageCard(
-    String message, {
-    required IconData icon,
-    Color iconColor = _C.text2,
-    String? actionLabel,
-    VoidCallback? onAction,
-  }) {
+  Widget _avatar() {
+    return Container(
+      width: 46,
+      height: 46,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: _C.error.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _C.error.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        _initials(name),
+        style: _T.display(16, color: _C.error, letterSpacing: 0.4),
+      ),
+    );
+  }
+}
+
+/// Collapsible roster of present members shown as compact chips.
+class _PresentSection extends StatefulWidget {
+  const _PresentSection({super.key, required this.members});
+
+  final List<String> members;
+
+  @override
+  State<_PresentSection> createState() => _PresentSectionState();
+}
+
+class _PresentSectionState extends State<_PresentSection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final members = widget.members;
+    final canExpand = members.isNotEmpty;
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _C.border),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: canExpand
+                ? () => setState(() => _expanded = !_expanded)
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: _C.success.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.check_rounded, color: _C.success),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Present', style: _T.display(17)),
+                        const SizedBox(height: 3),
+                        Text(
+                          members.isEmpty
+                              ? 'No one marked present'
+                              : '${members.length} '
+                                    '${members.length == 1 ? 'member' : 'members'}',
+                          style: _T.body(13, color: _C.textSubtle),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (canExpand)
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 220),
+                      child: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: _C.text2,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: _expanded && canExpand
+                ? Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      border: Border(top: BorderSide(color: _C.border)),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final name in members) _PresentChip(name: name),
+                      ],
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PresentChip extends StatelessWidget {
+  const _PresentChip({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
+      decoration: BoxDecoration(
+        color: _C.success.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: _C.success.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: _C.success.withValues(alpha: 0.18),
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              _initials(name),
+              style: _T.display(10, color: _C.success, letterSpacing: 0.2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: _T.body(13, weight: FontWeight.w600, color: _C.text),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Empty / error / info message with an optional action.
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({
+    required this.message,
+    required this.icon,
+    this.iconColor = _C.text2,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String message;
+  final IconData icon;
+  final Color iconColor;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: _C.bg2,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _C.border),
       ),
       child: Column(
@@ -1021,841 +1340,11 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
                 textStyle: _T.body(14, weight: FontWeight.w700),
               ),
               onPressed: onAction,
-              child: Text(actionLabel),
+              child: Text(actionLabel!),
             ),
           ],
         ],
       ),
-    );
-  }
-
-  String _monthName(int month) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-
-    return months[month - 1];
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Member history list
-// ---------------------------------------------------------------------------
-class MemberHistoryScreen extends StatefulWidget {
-  const MemberHistoryScreen({super.key, required this.initialYear});
-
-  final int initialYear;
-
-  @override
-  State<MemberHistoryScreen> createState() => _MemberHistoryScreenState();
-}
-
-class _MemberHistoryScreenState extends State<MemberHistoryScreen> {
-  final MemberService _memberService = MemberService();
-
-  bool _loading = true;
-  String? _error;
-  String _search = '';
-  late int _selectedYear;
-  List<Map<String, dynamic>> _members = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedYear = widget.initialYear;
-    _loadMembers();
-  }
-
-  String _name(Map<String, dynamic> member) {
-    final value =
-        (member['fullName'] ?? member['name'] ?? member['firstName'] ?? '')
-            .toString()
-            .trim();
-
-    return value.isEmpty ? 'Unnamed member' : value;
-  }
-
-  String? _id(Map<String, dynamic> member) {
-    return (member['_id'] ?? member['id'] ?? member['memberId'])?.toString();
-  }
-
-  Future<void> _loadMembers() async {
-    if (!mounted) return;
-
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    try {
-      final allMembers = (await _memberService.getMembers())
-          .map((member) => member.toJson())
-          .toList();
-      allMembers.sort(
-        (a, b) => _name(a).toLowerCase().compareTo(_name(b).toLowerCase()),
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _members = allMembers;
-        _loading = false;
-
-        if (allMembers.isEmpty) {
-          _error =
-              'The server returned zero members. Check the members API '
-              'response and confirm that members exist.';
-        }
-      });
-    } catch (error) {
-      if (!mounted) return;
-
-      setState(() {
-        _error = error.toString().replaceFirst('Exception: ', '');
-        _loading = false;
-      });
-    }
-  }
-
-  OutlineInputBorder _fieldBorder(Color color, [double width = 1]) {
-    return OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: color, width: width),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final filtered = _members.where((member) {
-      return _name(member).toLowerCase().contains(_search.trim().toLowerCase());
-    }).toList();
-
-    return Scaffold(
-      backgroundColor: _C.bg,
-      appBar: _appBar(
-        'Member history',
-        actions: [
-          IconButton(
-            tooltip: 'Refresh members',
-            onPressed: _loading ? null : _loadMembers,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 850),
-            child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: _C.accent,
-                      strokeWidth: 3,
-                    ),
-                  )
-                : _error != null
-                ? _errorState(_error!, _loadMembers)
-                : Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Members',
-                            style: _T.display(34, letterSpacing: -1),
-                          ),
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Expanded(
-                              child: _labeled('Search members', _searchField()),
-                            ),
-                            const SizedBox(width: 12),
-                            SizedBox(
-                              width: 112,
-                              child: _labeled('Year', _yearField()),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            '${filtered.length} members',
-                            style: _T.body(
-                              14,
-                              weight: FontWeight.w600,
-                              color: _C.textSubtle,
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: filtered.isEmpty
-                            ? Center(
-                                child: Text(
-                                  _members.isEmpty
-                                      ? 'No members found.'
-                                      : 'No members match your search.',
-                                  style: _T.body(15),
-                                ),
-                              )
-                            : ListView.separated(
-                                padding: const EdgeInsets.fromLTRB(
-                                  20,
-                                  0,
-                                  20,
-                                  24,
-                                ),
-                                itemCount: filtered.length,
-                                separatorBuilder: (_, _) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (context, index) =>
-                                    _memberTile(filtered[index]),
-                              ),
-                      ),
-                    ],
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _searchField() {
-    return TextField(
-      style: _T.body(15, weight: FontWeight.w600, color: _C.inputText),
-      cursorColor: _C.inputFocus,
-      decoration: InputDecoration(
-        hintText: 'Search by name',
-        hintStyle: _T.body(15, color: _C.inputHint),
-        filled: true,
-        fillColor: _C.inputBg,
-        isDense: false,
-        contentPadding: const EdgeInsets.symmetric(vertical: 14),
-        prefixIcon: const Icon(Icons.search_rounded, color: _C.inputIcon),
-        suffixIcon: _search.isEmpty
-            ? null
-            : IconButton(
-                tooltip: 'Clear search',
-                onPressed: () => setState(() => _search = ''),
-                icon: const Icon(Icons.close_rounded, color: _C.inputIcon),
-              ),
-        border: _fieldBorder(_C.inputBorder),
-        enabledBorder: _fieldBorder(_C.inputBorder),
-        focusedBorder: _fieldBorder(_C.inputFocus, 1.8),
-      ),
-      onChanged: (value) => setState(() => _search = value),
-    );
-  }
-
-  Widget _yearField() {
-    return _lightDropdown<int>(
-      value: _selectedYear,
-      items: List.generate(11, (index) => DateTime.now().year - 5 + index)
-          .map(
-            (year) => DropdownMenuItem<int>(value: year, child: Text('$year')),
-          )
-          .toList(),
-      onChanged: (year) {
-        if (year != null) {
-          setState(() => _selectedYear = year);
-        }
-      },
-    );
-  }
-
-  Widget _memberTile(Map<String, dynamic> member) {
-    final name = _name(member);
-    final id = _id(member);
-    final enabled = id != null && id.isNotEmpty;
-
-    return Material(
-      color: _C.surface,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: _C.border),
-      ),
-      child: InkWell(
-        onTap: !enabled
-            ? null
-            : () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => MemberAttendanceDetailScreen(
-                      memberId: id,
-                      memberName: name,
-                      year: _selectedYear,
-                    ),
-                  ),
-                );
-              },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            children: [
-              _initialsBlock(name),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: _T.display(16, letterSpacing: -0.1),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'View attendance chart and history',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: _T.body(13, color: _C.textSubtle),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: enabled ? _C.text2 : _C.border,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Member attendance detail
-// ---------------------------------------------------------------------------
-class MemberAttendanceDetailScreen extends StatefulWidget {
-  const MemberAttendanceDetailScreen({
-    super.key,
-    required this.memberId,
-    required this.memberName,
-    required this.year,
-  });
-
-  final String memberId;
-  final String memberName;
-  final int year;
-
-  @override
-  State<MemberAttendanceDetailScreen> createState() =>
-      _MemberAttendanceDetailScreenState();
-}
-
-class _MemberAttendanceDetailScreenState
-    extends State<MemberAttendanceDetailScreen> {
-  final AttendanceService _service = AttendanceService.instance;
-
-  late int _selectedYear;
-  late int _selectedMonth;
-  bool _loading = true;
-  String? _error;
-  Map<String, String> _statusByDate = {};
-  Set<String> _sessionDates = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedYear = widget.year;
-    _selectedMonth = DateTime.now().month;
-    _loadHistory();
-  }
-
-  Future<void> _loadHistory() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    try {
-      final result = await _service.getAttendanceSummary(
-        year: _selectedYear,
-        memberId: widget.memberId,
-        includeMemberStatus: true,
-      );
-      final data = Map<String, dynamic>.from(result['data'] as Map);
-      final statusByDate = <String, String>{};
-      final sessionDates = <String>{};
-
-      for (final item in data['records'] as List<dynamic>? ?? []) {
-        if (item is! Map) continue;
-        final session = Map<String, dynamic>.from(item);
-        final date = session['date']?.toString();
-        final parsedDate = date == null ? null : DateTime.tryParse(date);
-        if (parsedDate == null ||
-            parsedDate.year != _selectedYear ||
-            parsedDate.weekday != DateTime.sunday) {
-          continue;
-        }
-
-        final key = AttendanceChartData.dateKey(parsedDate);
-        sessionDates.add(key);
-        statusByDate[key] = session['memberStatus']?.toString() ?? 'unmarked';
-      }
-
-      if (!mounted) return;
-
-      setState(() {
-        _statusByDate = statusByDate;
-        _sessionDates = sessionDates;
-        _loading = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-
-      setState(() {
-        _error = error.toString().replaceFirst('Exception: ', '');
-        _loading = false;
-      });
-    }
-  }
-
-  void _selectYear(int? year) {
-    if (year == null || year == _selectedYear) return;
-    setState(() => _selectedYear = year);
-    _loadHistory();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final yearSundays = AttendanceChartData.sundaysInYear(_selectedYear);
-    final yearCounts = AttendanceChartCounts.fromStatuses(
-      yearSundays.map(
-        (date) => AttendanceChartData.statusForDate(date, _statusByDate),
-      ),
-    );
-    final present = yearCounts.present;
-    final absent = yearCounts.absent;
-    final unmarked = yearCounts.unmarked;
-    final percentage = yearCounts.attendancePercentage;
-
-    return Scaffold(
-      backgroundColor: _C.bg,
-      appBar: _appBar(
-        'Attendance details',
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _loading ? null : _loadHistory,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 900),
-            child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      color: _C.accent,
-                      strokeWidth: 3,
-                    ),
-                  )
-                : _error != null
-                ? _errorState(_error!, _loadHistory)
-                : RefreshIndicator(
-                    color: _C.accent,
-                    backgroundColor: _C.surface,
-                    onRefresh: _loadHistory,
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-                      children: [
-                        Row(
-                          children: [
-                            _initialsBlock(
-                              widget.memberName,
-                              size: 64,
-                              font: 22,
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                widget.memberName,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: _T.display(28, height: 1.1),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        _yearlyBlock(
-                          present: present,
-                          absent: absent,
-                          unmarked: unmarked,
-                          total: yearCounts.total,
-                          percentage: percentage,
-                        ),
-                        const SizedBox(height: 32),
-                        _heading('Monthly attendance'),
-                        const SizedBox(height: 14),
-                        _monthlyChart(),
-                      ],
-                    ),
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _yearlyBlock({
-    required int present,
-    required int absent,
-    required int unmarked,
-    required int total,
-    required double percentage,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _C.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _C.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Yearly attendance, $_selectedYear', style: _T.label()),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              SizedBox(
-                width: 116,
-                height: 116,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CircularProgressIndicator(
-                      value: percentage / 100,
-                      strokeWidth: 12,
-                      strokeCap: StrokeCap.round,
-                      backgroundColor: _C.border,
-                      color: _C.success,
-                    ),
-                    Center(
-                      child: Text(
-                        '${percentage.toStringAsFixed(0)}%',
-                        style: _T.number(30),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: Column(
-                  children: [
-                    _legendRow(_C.success, 'Present', present),
-                    const SizedBox(height: 12),
-                    _legendRow(_C.error, 'Absent', absent),
-                    const SizedBox(height: 12),
-                    _legendRow(_C.textSubtle, 'Unmarked', unmarked),
-                    const SizedBox(height: 14),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        '$total Sundays in $_selectedYear',
-                        style: _T.body(12, color: _C.textSubtle),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _monthlyChart() {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    final sundays = AttendanceChartData.sundaysInMonth(
-      _selectedYear,
-      _selectedMonth,
-    );
-    final statuses = sundays
-        .map((date) => AttendanceChartData.statusForDate(date, _statusByDate))
-        .toList();
-    final counts = AttendanceChartCounts.fromStatuses(statuses);
-    final hasRecords = sundays.any(
-      (date) => _sessionDates.contains(AttendanceChartData.dateKey(date)),
-    );
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: _C.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _C.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: _labeled(
-                  'Month',
-                  _lightDropdown<int>(
-                    value: _selectedMonth,
-                    items: List.generate(
-                      12,
-                      (index) => DropdownMenuItem<int>(
-                        value: index + 1,
-                        child: Text(months[index]),
-                      ),
-                    ),
-                    onChanged: (month) {
-                      if (month != null) {
-                        setState(() => _selectedMonth = month);
-                      }
-                    },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              SizedBox(width: 112, child: _labeled('Year', _yearField())),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 16,
-            runSpacing: 8,
-            children: [
-              _chartLegend(_C.success, 'Present'),
-              _chartLegend(_C.error, 'Absent'),
-              _chartLegend(_C.textSubtle, 'Unmarked'),
-            ],
-          ),
-          const SizedBox(height: 18),
-          if (!hasRecords)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Text(
-                'No attendance records for this month. Sundays are shown as '
-                'unmarked.',
-                style: _T.body(13, color: _C.textSubtle, height: 1.4),
-              ),
-            ),
-          if (sundays.isEmpty)
-            Text('There are no Sundays in this month.', style: _T.body(14))
-          else
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: List.generate(sundays.length, (index) {
-                final date = sundays[index];
-                final status = statuses[index];
-
-                return Expanded(
-                  child: Tooltip(
-                    message:
-                        'Week ${index + 1} · '
-                        '${months[_selectedMonth - 1]} ${date.day}: '
-                        '${_stateLabel(status)}',
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Week ${index + 1}',
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: _T.body(
-                              12,
-                              weight: FontWeight.w700,
-                              color: _C.text,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${date.day}',
-                            textAlign: TextAlign.center,
-                            style: _T.body(12, color: _C.textSubtle),
-                          ),
-                          const SizedBox(height: 8),
-                          _chartBar(status),
-                          const SizedBox(height: 8),
-                          Text(
-                            _stateLabel(status),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: _T.body(
-                              11,
-                              weight: FontWeight.w600,
-                              color: _stateColor(status),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-          const SizedBox(height: 22),
-          _statistics(counts, percentage: counts.attendancePercentage),
-        ],
-      ),
-    );
-  }
-
-  // The icon inside each bar means state never depends on color alone.
-  Widget _chartBar(String status) {
-    final normalized = status.toLowerCase();
-    final isUnmarked = normalized != 'present' && normalized != 'absent';
-
-    return Container(
-      height: 72,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: isUnmarked ? _C.border : _stateColor(normalized),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(
-        _stateIcon(normalized),
-        size: 22,
-        color: isUnmarked ? _C.text2 : _C.ink,
-      ),
-    );
-  }
-
-  Widget _yearField() {
-    return _lightDropdown<int>(
-      value: _selectedYear,
-      items: List.generate(101, (index) => 2000 + index)
-          .map(
-            (year) => DropdownMenuItem<int>(value: year, child: Text('$year')),
-          )
-          .toList(),
-      onChanged: _loading ? null : _selectYear,
-    );
-  }
-
-  Widget _statistics(
-    AttendanceChartCounts counts, {
-    required double percentage,
-  }) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _statistic('Sundays', '${counts.total}'),
-        _statistic('Present', '${counts.present}', color: _C.success),
-        _statistic('Absent', '${counts.absent}', color: _C.error),
-        _statistic('Unmarked', '${counts.unmarked}'),
-        _statistic('Attendance', '${percentage.toStringAsFixed(1)}%'),
-      ],
-    );
-  }
-
-  Widget _statistic(String label, String value, {Color color = _C.text}) {
-    return Container(
-      constraints: const BoxConstraints(minWidth: 84),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: _C.bg2,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _C.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(value, style: _T.number(20, color: color)),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: _T.body(12, weight: FontWeight.w600, color: _C.textSubtle),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _chartLegend(Color color, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(label, style: _T.body(13, color: _C.text2)),
-      ],
-    );
-  }
-
-  Widget _legendRow(Color color, String label, int value) {
-    return Row(
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: _T.body(14, weight: FontWeight.w600, color: _C.text2),
-          ),
-        ),
-        Text('$value', style: _T.number(18)),
-      ],
     );
   }
 }
