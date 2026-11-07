@@ -6,29 +6,25 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/auth_user.dart';
 import '../utils/secure_storage.dart';
+import 'api_http_client.dart';
 
 class AuthService {
   Future<AuthUser> register({
     required String number,
     required String password,
   }) async {
-    final response = await http
-        .post(
-          Uri.parse(ApiConfig.registerUrl),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'number': number.trim(),
-            'password': password,
-          }),
-        )
-        .timeout(const Duration(seconds: 20));
+    final response = await ApiHttpClient.send(
+      method: 'POST',
+      url: Uri.parse(ApiConfig.registerUrl),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'number': number.trim(), 'password': password}),
+      timeout: const Duration(seconds: 20),
+    );
 
     final data = _decodeResponse(response);
 
     if (response.statusCode == 201) {
-      return AuthUser.fromJson(
-        Map<String, dynamic>.from(data['user'] as Map),
-      );
+      return AuthUser.fromJson(Map<String, dynamic>.from(data['user'] as Map));
     }
 
     throw AuthException(
@@ -41,16 +37,13 @@ class AuthService {
     required String number,
     required String password,
   }) async {
-    final response = await http
-        .post(
-          Uri.parse(ApiConfig.loginUrl),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'number': number.trim(),
-            'password': password,
-          }),
-        )
-        .timeout(const Duration(seconds: 20));
+    final response = await ApiHttpClient.send(
+      method: 'POST',
+      url: Uri.parse(ApiConfig.loginUrl),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'number': number.trim(), 'password': password}),
+      timeout: const Duration(seconds: 20),
+    );
 
     final data = _decodeResponse(response);
 
@@ -72,9 +65,7 @@ class AuthService {
       throw AuthException('Invalid user data received from the server.');
     }
 
-    final user = AuthUser.fromJson(
-      Map<String, dynamic>.from(userJson),
-    );
+    final user = AuthUser.fromJson(Map<String, dynamic>.from(userJson));
 
     await SecureStorage.saveUser(user);
     await SecureStorage.saveToken(data['token'].toString());
@@ -103,8 +94,7 @@ class AuthService {
     final data = _decodeResponse(response);
     if (response.statusCode != 200 || data['user'] is! Map) {
       throw AuthException(
-        data['message']?.toString() ??
-            'Unable to verify your login session.',
+        data['message']?.toString() ?? 'Unable to verify your login session.',
         statusCode: response.statusCode,
       );
     }
@@ -126,15 +116,15 @@ class AuthService {
 
   Future<http.Response> _fetchCurrentUserResponse(String token) async {
     try {
-      return await http
-          .get(
-            Uri.parse(ApiConfig.meUrl),
-            headers: {
-              'Authorization': 'Bearer $token',
-              'Content-Type': 'application/json',
-            },
-          )
-          .timeout(const Duration(seconds: 20));
+      return await ApiHttpClient.send(
+        method: 'GET',
+        url: Uri.parse(ApiConfig.meUrl),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        timeout: const Duration(seconds: 20),
+      );
     } on TimeoutException {
       throw AuthNetworkException(
         'Unable to reach the server. Your saved session is still available.',

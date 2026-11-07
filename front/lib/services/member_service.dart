@@ -5,15 +5,16 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/member.dart';
 import '../utils/secure_storage.dart';
+import 'api_http_client.dart';
 
 class MemberService {
   Future<List<Member>> getMembers() async {
-    final response = await http
-        .get(
-          Uri.parse('${ApiConfig.baseUrl}/members'),
-          headers: await _headers(),
-        )
-        .timeout(const Duration(seconds: 20));
+    final response = await ApiHttpClient.send(
+      method: 'GET',
+      url: Uri.parse('${ApiConfig.baseUrl}/members'),
+      headers: await _headers(),
+      timeout: const Duration(seconds: 20),
+    );
 
     final data = _decode(response);
 
@@ -54,13 +55,13 @@ class MemberService {
       baptismDate: baptismDate,
       marriageDate: marriageDate,
     );
-    final response = await http
-        .post(
-          Uri.parse('${ApiConfig.baseUrl}/members'),
-          headers: await _headers(),
-          body: jsonEncode(request.toJson()),
-        )
-        .timeout(const Duration(seconds: 20));
+    final response = await ApiHttpClient.send(
+      method: 'POST',
+      url: Uri.parse('${ApiConfig.baseUrl}/members'),
+      headers: await _headers(),
+      body: jsonEncode(request.toJson()),
+      timeout: const Duration(seconds: 20),
+    );
 
     final data = _decode(response);
 
@@ -90,13 +91,13 @@ class MemberService {
       baptismDate: baptismDate,
       marriageDate: marriageDate,
     );
-    final response = await http
-        .put(
-          Uri.parse('${ApiConfig.baseUrl}/members/$id'),
-          headers: await _headers(),
-          body: jsonEncode(request.toJson()),
-        )
-        .timeout(const Duration(seconds: 20));
+    final response = await ApiHttpClient.send(
+      method: 'PUT',
+      url: Uri.parse('${ApiConfig.baseUrl}/members/$id'),
+      headers: await _headers(),
+      body: jsonEncode(request.toJson()),
+      timeout: const Duration(seconds: 20),
+    );
 
     final data = _decode(response);
 
@@ -111,12 +112,12 @@ class MemberService {
   }
 
   Future<void> deleteMember(String id) async {
-    final response = await http
-        .delete(
-          Uri.parse('${ApiConfig.baseUrl}/members/$id'),
-          headers: await _headers(),
-        )
-        .timeout(const Duration(seconds: 20));
+    final response = await ApiHttpClient.send(
+      method: 'DELETE',
+      url: Uri.parse('${ApiConfig.baseUrl}/members/$id'),
+      headers: await _headers(),
+      timeout: const Duration(seconds: 20),
+    );
 
     final data = _decode(response);
 

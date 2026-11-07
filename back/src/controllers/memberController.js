@@ -1,6 +1,7 @@
 
 const mongoose = require("mongoose");
 const Member = require("../models/Member");
+const { logError } = require("../utils/logging");
 
 const createMember = async (req, res) => {
   try {
@@ -40,7 +41,7 @@ const createMember = async (req, res) => {
       });
     }
 
-    console.error("Create member error:", error.message);
+    logError("[MONGODB]", "Create member database operation failed", error);
 
     return res.status(500).json({
       success: false,
@@ -120,7 +121,7 @@ const getMembers = async (req, res) => {
       members,
     });
   } catch (error) {
-    console.error("Get members error:", error.message);
+    logError("[MONGODB]", "Get members query failed", error);
 
     return res.status(500).json({
       success: false,
@@ -152,7 +153,7 @@ const getMemberById = async (req, res) => {
       member,
     });
   } catch (error) {
-    console.error("Get member error:", error.message);
+    logError("[MONGODB]", "Get member query failed", error);
 
     return res.status(500).json({
       success: false,
@@ -245,7 +246,7 @@ const updateMember = async (req, res) => {
       });
     }
 
-    console.error("Update member error:", error.message);
+    logError("[MONGODB]", "Update member database operation failed", error);
 
     return res.status(500).json({
       success: false,
@@ -277,7 +278,7 @@ const deleteMember = async (req, res) => {
       message: "Member deleted successfully.",
     });
   } catch (error) {
-    console.error("Delete member error:", error.message);
+    logError("[MONGODB]", "Delete member query failed", error);
 
     return res.status(500).json({
       success: false,

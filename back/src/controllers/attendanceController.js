@@ -2,6 +2,7 @@
 const Attendance = require("../models/Attendance");
 const Member = require("../models/Member");
 const mongoose = require("mongoose");
+const { logError } = require("../utils/logging");
 
 // Accept YYYY-MM-DD and store dates consistently in UTC.
 const parseAttendanceDate = (value) => {
@@ -51,7 +52,7 @@ const sendError = (res, error) => {
     });
   }
 
-  console.error("Attendance error:", error.message);
+  logError("[MONGODB]", "Attendance query/operation failed", error);
 
   return res.status(500).json({
     success: false,
@@ -408,7 +409,7 @@ const getAttendanceSummary = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Attendance summary error:", error.message);
+    logError("[MONGODB]", "Attendance summary query failed", error);
 
     return res.status(500).json({
       success: false,

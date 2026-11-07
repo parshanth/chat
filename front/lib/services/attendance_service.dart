@@ -1,10 +1,10 @@
-
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
 import '../config/api_config.dart';
 import '../utils/secure_storage.dart';
+import 'api_http_client.dart';
 
 class AttendanceService {
   AttendanceService._();
@@ -54,12 +54,13 @@ class AttendanceService {
 
   /// Loads all members and their statuses for a selected Sunday.
   Future<Map<String, dynamic>> getAttendance(String date) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/attendance').replace(
-      queryParameters: {'date': date},
-    );
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}/attendance',
+    ).replace(queryParameters: {'date': date});
 
-    final response = await http.get(
-      uri,
+    final response = await ApiHttpClient.send(
+      method: 'GET',
+      url: uri,
       headers: await _headers(),
     );
 
@@ -76,14 +77,11 @@ class AttendanceService {
       throw ArgumentError('Invalid attendance status.');
     }
 
-    final response = await http.patch(
-      Uri.parse('${ApiConfig.baseUrl}/attendance/member'),
+    final response = await ApiHttpClient.send(
+      method: 'PATCH',
+      url: Uri.parse('${ApiConfig.baseUrl}/attendance/member'),
       headers: await _headers(),
-      body: jsonEncode({
-        'date': date,
-        'memberId': memberId,
-        'status': status,
-      }),
+      body: jsonEncode({'date': date, 'memberId': memberId, 'status': status}),
     );
 
     return _decodeResponse(response);
@@ -94,18 +92,15 @@ class AttendanceService {
     required String date,
     required List<Map<String, String>> entries,
   }) async {
-    final response = await http.put(
-      Uri.parse('${ApiConfig.baseUrl}/attendance'),
+    final response = await ApiHttpClient.send(
+      method: 'PUT',
+      url: Uri.parse('${ApiConfig.baseUrl}/attendance'),
       headers: await _headers(),
-      body: jsonEncode({
-        'date': date,
-        'entries': entries,
-      }),
+      body: jsonEncode({'date': date, 'entries': entries}),
     );
 
     return _decodeResponse(response);
   }
-
 
   /// Loads attendance summaries for a selected year.
   /// Optionally filters the history to a specific member.
@@ -128,20 +123,16 @@ class AttendanceService {
       queryParameters['includeMemberStatus'] = 'true';
     }
 
-    final uri = Uri.parse(
-      '${ApiConfig.baseUrl}/attendance/summary',
-    ).replace(
-      queryParameters:
-          queryParameters.isEmpty ? null : queryParameters,
+    final uri = Uri.parse('${ApiConfig.baseUrl}/attendance/summary').replace(
+      queryParameters: queryParameters.isEmpty ? null : queryParameters,
     );
 
-    final response = await http.get(
-      uri,
+    final response = await ApiHttpClient.send(
+      method: 'GET',
+      url: uri,
       headers: await _headers(),
     );
 
     return _decodeResponse(response);
   }
-
-
 }

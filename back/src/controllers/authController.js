@@ -1,10 +1,19 @@
 
 const AuthUser = require("../models/AuthUser");
 const jwt = require("jsonwebtoken");
+const { logError } = require("../utils/logging");
 
 const register = async (req, res) => {
+  console.log("[REGISTER] Route execution started");
   try {
     const { number, password } = req.body;
+    console.log(
+      "[REGISTER] Required fields received",
+      JSON.stringify({
+        numberReceived: typeof number === "string" && Boolean(number.trim()),
+        passwordReceived: typeof password === "string" && Boolean(password),
+      })
+    );
 
     if (
       typeof number !== "string" ||
@@ -20,9 +29,19 @@ const register = async (req, res) => {
 
     const normalizedNumber = number.trim();
 
-    const existingUser = await AuthUser.findOne({
-      number: normalizedNumber,
-    });
+    let existingUser;
+    try {
+      existingUser = await AuthUser.findOne({
+        number: normalizedNumber,
+      });
+    } catch (error) {
+      logError("[MONGODB]", "Registration user lookup failed", error);
+      throw error;
+    }
+    console.log(
+      "[REGISTER] Existing user lookup completed",
+      JSON.stringify({ userAlreadyExists: Boolean(existingUser) })
+    );
 
     if (existingUser) {
       return res.status(409).json({
@@ -31,11 +50,18 @@ const register = async (req, res) => {
       });
     }
 
-    const user = await AuthUser.create({
-      number: normalizedNumber,
-      password,
-      allowed: false,
-    });
+    let user;
+    try {
+      user = await AuthUser.create({
+        number: normalizedNumber,
+        password,
+        allowed: false,
+      });
+    } catch (error) {
+      logError("[MONGODB]", "Registration user creation failed", error);
+      throw error;
+    }
+    console.log("[REGISTER] User record created; awaiting approval");
 
     return res.status(201).json({
       success: true,
@@ -54,7 +80,7 @@ const register = async (req, res) => {
       });
     }
 
-    console.error("Registration error:", error.message);
+    logError("[REGISTER]", "Registration failed", error);
 
     return res.status(500).json({
       success: false,
@@ -64,8 +90,16 @@ const register = async (req, res) => {
 };
 
 const login = async (req, res) => {
+  console.log("[LOGIN] Route execution started");
   try {
     const { number, password } = req.body;
+    console.log(
+      "[LOGIN] Required fields received",
+      JSON.stringify({
+        numberReceived: typeof number === "string" && Boolean(number.trim()),
+        passwordReceived: typeof password === "string" && Boolean(password),
+      })
+    );
 
     if (
       typeof number !== "string" ||
@@ -79,11 +113,30 @@ const login = async (req, res) => {
       });
     }
 
-    const user = await AuthUser.findOne({
-      number: number.trim(),
-    });
+    let user;
+    try {
+      user = await AuthUser.findOne({
+        number: number.trim(),
+      });
+    } catch (error) {
+      logError("[MONGODB]", "Login user lookup failed", error);
+      throw error;
+    }
+    console.log(
+      "[LOGIN] User lookup completed",
+      JSON.stringify({ userFound: Boolean(user) })
+    );
 
-    if (!user || !(await user.comparePassword(password))) {
+    const passwordMatches = user ? await user.comparePassword(password) : false;
+    console.log(
+      "[LOGIN] Password comparison completed",
+      JSON.stringify({
+        performed: Boolean(user),
+        succeeded: passwordMatches,
+      })
+    );
+
+    if (!user || !passwordMatches) {
       return res.status(401).json({
         success: false,
         message: "Invalid number or password.",
@@ -98,7 +151,7 @@ const login = async (req, res) => {
     }
 
     if (!process.env.JWT_SECRET) {
-      console.error("JWT_SECRET is missing from environment variables.");
+      console.error("[LOGIN] JWT_SECRET is missing from environment variables.");
 
       return res.status(500).json({
         success: false,
@@ -106,13 +159,20 @@ const login = async (req, res) => {
       });
     }
 
-    const token = jwt.sign(
-      {
-        userId: user._id.toString(),
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    let token;
+    try {
+      token = jwt.sign(
+        {
+          userId: user._id.toString(),
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+      console.log("[LOGIN] JWT generation succeeded");
+    } catch (error) {
+      logError("[LOGIN]", "JWT generation failed", error);
+      throw error;
+    }
 
     return res.status(200).json({
       success: true,
@@ -125,7 +185,7 @@ const login = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Login error:", error.message);
+    logError("[LOGIN]", "Login failed", error);
 
     return res.status(500).json({
       success: false,
@@ -135,6 +195,7 @@ const login = async (req, res) => {
 };
 
 const getMe = async (req, res) => {
+  console.log("[AUTH] Current-user route execution");
   return res.status(200).json({
     success: true,
     user: {
