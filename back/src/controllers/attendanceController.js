@@ -193,6 +193,17 @@ const updateMemberAttendance = async (req, res) => {
 
     await attendance.save();
 
+    console.log(
+      "[ATTENDANCE] Status changed",
+      JSON.stringify({
+        timestamp: new Date().toISOString(),
+        date: date.toISOString().slice(0, 10),
+        memberId,
+        status,
+        actorAccountNumber: req.user?.number ?? "unknown",
+      })
+    );
+
     return res.status(200).json({
       success: true,
       message: "Attendance updated successfully.",
@@ -295,6 +306,19 @@ const saveAttendance = async (req, res) => {
         runValidators: true,
         setDefaultsOnInsert: true,
       }
+    );
+
+    console.log(
+      "[ATTENDANCE] Statuses saved",
+      JSON.stringify({
+        timestamp: new Date().toISOString(),
+        date: date.toISOString().slice(0, 10),
+        actorAccountNumber: req.user?.number ?? "unknown",
+        entries: normalizedEntries.map((entry) => ({
+          memberId: entry.member,
+          status: entry.status,
+        })),
+      })
     );
 
     return res.status(200).json({
