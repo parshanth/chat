@@ -44,6 +44,10 @@ const calculateSundayWeek = (date) => {
   return { year, weekNumber };
 };
 
+// A Sunday is the second Sunday when its day of month is 8 through 14.
+const isCommunionSunday = (date) =>
+  date.getUTCDay() === 0 && date.getUTCDate() >= 8 && date.getUTCDate() <= 14;
+
 const sendError = (res, error) => {
   if (error.code === 11000) {
     return res.status(409).json({
@@ -90,10 +94,27 @@ const getAttendance = async (req, res) => {
       ])
     );
 
-    const entries = members.map((member) => ({
-      ...member,
-      status: statusByMember.get(member._id.toString()) ?? "unmarked",
-    }));
+    const communionByMember = new Map(
+      (attendance?.communionEntries ?? []).map((entry) => [
+        entry.member.toString(),
+        entry.status,
+      ])
+    );
+    const communionSunday = isCommunionSunday(date);
+
+    const entries = members.map((member) => {
+      const communionEligible = communionSunday && Boolean(member.baptismDate);
+      return {
+        ...member,
+        status: statusByMember.get(member._id.toString()) ?? "unmarked",
+        communionEligible,
+        communionStatus: communionEligible
+          ? communionByMember.get(member._id.toString()) ?? "absent"
+          : "not_applicable",
+      };
+    });
+
+    const communionEligible = entries.filter((m) => m.communionEligible);
 
     return res.status(200).json({
       success: true,
@@ -107,6 +128,16 @@ const getAttendance = async (req, res) => {
           present: entries.filter((m) => m.status === "present").length,
           absent: entries.filter((m) => m.status === "absent").length,
           unmarked: entries.filter((m) => m.status === "unmarked").length,
+          communion: {
+            applicable: communionSunday,
+            eligible: communionEligible.length,
+            present: communionEligible.filter(
+              (m) => m.communionStatus === "present"
+            ).length,
+            absent: communionEligible.filter(
+              (m) => m.communionStatus === "absent"
+            ).length,
+          },
         },
       },
     });
@@ -214,6 +245,77 @@ const updateMemberAttendance = async (req, res) => {
         memberId,
         status,
       },
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
+// PATCH /api/v1/attendance/communion
+// Body: { date, memberId, status }. Communion never changes normal attendance.
+const updateMemberCommunion = async (req, res) => {
+  try {
+    const { date: dateValue, memberId, status } = req.body;
+    const date = parseAttendanceDate(dateValue);
+
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        message: "Provide a valid Sunday date using YYYY-MM-DD.",
+      });
+    }
+    if (!isCommunionSunday(date)) {
+      return res.status(400).json({
+        success: false,
+        message: "Communion can only be recorded on the second Sunday.",
+      });
+    }
+    if (!mongoose.isValidObjectId(memberId)) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid member ID is required.",
+      });
+    }
+    if (!["present", "absent"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Communion status must be present or absent.",
+      });
+    }
+
+    const member = await Member.findById(memberId).select("_id baptismDate");
+    if (!member) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Member not found." });
+    }
+    if (!member.baptismDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Communion is only available to members with a baptism date.",
+      });
+    }
+
+    const { year, weekNumber } = calculateSundayWeek(date);
+    const attendance = await Attendance.findOneAndUpdate(
+      { date },
+      { $setOnInsert: { date, year, weekNumber, entries: [] } },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    );
+    const existingIndex = attendance.communionEntries.findIndex(
+      (entry) => entry.member.toString() === memberId
+    );
+    if (existingIndex === -1) {
+      attendance.communionEntries.push({ member: memberId, status });
+    } else {
+      attendance.communionEntries[existingIndex].status = status;
+    }
+    await attendance.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Communion attendance updated successfully.",
+      data: { date: dateValue, memberId, communionStatus: status },
     });
   } catch (error) {
     return sendError(res, error);
@@ -387,9 +489,10 @@ const getAttendanceSummary = async (req, res) => {
       };
     }
 
-    const [records, totalMembers] = await Promise.all([
+    const [records, totalMembers, totalBaptizedMembers] = await Promise.all([
       Attendance.find(filter).sort({ date: -1 }).lean(),
       Member.countDocuments(),
+      Member.countDocuments({ baptismDate: { $ne: null } }),
     ]);
 
     const summaries = records.map((record) => {
@@ -410,6 +513,17 @@ const getAttendanceSummary = async (req, res) => {
         (entry) => entry.status === "absent"
       ).length;
 
+      const communionApplicable = isCommunionSunday(record.date);
+      const communionEntries = record.communionEntries ?? [];
+      const communionPresent = communionEntries.filter(
+        (entry) => entry.status === "present"
+      ).length;
+      // Missing Communion marks are absences for eligible members, matching
+      // the weekly roster returned by getAttendance.
+      const communionAbsent = communionApplicable
+        ? Math.max(totalBaptizedMembers - communionPresent, 0)
+        : 0;
+
       return {
         date: record.date.toISOString().slice(0, 10),
         year: record.year,
@@ -418,6 +532,12 @@ const getAttendanceSummary = async (req, res) => {
         present,
         absent,
         unmarked: Math.max(totalMembers - present - absent, 0),
+        communion: {
+          applicable: communionApplicable,
+          eligible: communionApplicable ? totalBaptizedMembers : 0,
+          present: communionPresent,
+          absent: communionAbsent,
+        },
         ...(memberId && includeMemberStatus
           ? { memberStatus: memberEntry?.status ?? "unmarked" }
           : {}),
@@ -446,5 +566,8 @@ module.exports = {
   getAttendance,
   updateMemberAttendance,
   saveAttendance,
-    getAttendanceSummary,
+  updateMemberCommunion,
+  getAttendanceSummary,
+  // Exported for focused unit tests without weakening route validation.
+  isCommunionSunday,
 };

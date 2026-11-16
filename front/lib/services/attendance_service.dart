@@ -87,6 +87,26 @@ class AttendanceService {
     return _decodeResponse(response);
   }
 
+  /// Saves Communion without changing the member's ordinary P/A status.
+  Future<Map<String, dynamic>> updateMemberCommunion({
+    required String date,
+    required String memberId,
+    required String status,
+  }) async {
+    if (!['present', 'absent'].contains(status)) {
+      throw ArgumentError('Invalid Communion status.');
+    }
+
+    final response = await ApiHttpClient.send(
+      method: 'PATCH',
+      url: Uri.parse('${ApiConfig.baseUrl}/attendance/communion'),
+      headers: await _headers(),
+      body: jsonEncode({'date': date, 'memberId': memberId, 'status': status}),
+    );
+
+    return _decodeResponse(response);
+  }
+
   /// Saves the complete list. Omit unmarked members from entries.
   Future<Map<String, dynamic>> saveAttendance({
     required String date,

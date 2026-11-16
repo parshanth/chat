@@ -17,6 +17,22 @@ const attendanceEntrySchema = new mongoose.Schema(
   { _id: false }
 );
 
+const communionEntrySchema = new mongoose.Schema(
+  {
+    member: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Member",
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ["present", "absent"],
+      required: true,
+    },
+  },
+  { _id: false }
+);
+
 const attendanceSchema = new mongoose.Schema(
   {
     date: {
@@ -35,6 +51,12 @@ const attendanceSchema = new mongoose.Schema(
     },
     entries: {
       type: [attendanceEntrySchema],
+      default: [],
+    },
+    // Communion is deliberately separate from normal attendance. This is
+    // populated only for eligible members on the second Sunday of a month.
+    communionEntries: {
+      type: [communionEntrySchema],
       default: [],
     },
   },

@@ -16,44 +16,46 @@ class _C {
 }
 
 class _T {
-  static TextStyle display(double size, {Color color = _C.text, double? height}) =>
-      TextStyle(
-        fontFamily: 'Manrope',
-        fontSize: size,
-        fontWeight: FontWeight.w800,
-        color: color,
-        height: height,
-        letterSpacing: -0.4,
-      );
+  static TextStyle display(
+    double size, {
+    Color color = _C.text,
+    double? height,
+  }) => TextStyle(
+    fontFamily: 'Manrope',
+    fontSize: size,
+    fontWeight: FontWeight.w800,
+    color: color,
+    height: height,
+    letterSpacing: -0.4,
+  );
   static TextStyle number(double size, {Color color = _C.text}) => TextStyle(
-        fontFamily: 'Manrope',
-        fontSize: size,
-        fontWeight: FontWeight.w800,
-        color: color,
-        height: 1,
-        letterSpacing: -0.5,
-        fontFeatures: const [FontFeature.tabularFigures()],
-      );
+    fontFamily: 'Manrope',
+    fontSize: size,
+    fontWeight: FontWeight.w800,
+    color: color,
+    height: 1,
+    letterSpacing: -0.5,
+    fontFeatures: const [FontFeature.tabularFigures()],
+  );
   static TextStyle body(
     double size, {
     FontWeight weight = FontWeight.w400,
     Color color = _C.text2,
     double? height,
-  }) =>
-      TextStyle(
-        fontFamily: 'DMSans',
-        fontSize: size,
-        fontWeight: weight,
-        color: color,
-        height: height,
-      );
+  }) => TextStyle(
+    fontFamily: 'DMSans',
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    height: height,
+  );
   static TextStyle columnHead() => const TextStyle(
-        fontFamily: 'DMSans',
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        color: _C.text2,
-        letterSpacing: 0.9,
-      );
+    fontFamily: 'DMSans',
+    fontSize: 11,
+    fontWeight: FontWeight.w700,
+    color: _C.text2,
+    letterSpacing: 0.9,
+  );
 }
 
 class AddAttendanceScreen extends StatefulWidget {
@@ -85,12 +87,15 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
     return query.isEmpty
         ? _members
         : _members
-            .where((m) =>
-                (m['name']?.toString() ?? '').toLowerCase().contains(query))
-            .toList();
+              .where(
+                (m) =>
+                    (m['name']?.toString() ?? '').toLowerCase().contains(query),
+              )
+              .toList();
   }
 
-  int get _presentCount => _members.where((m) => _status(m) == 'present').length;
+  int get _presentCount =>
+      _members.where((m) => _status(m) == 'present').length;
   int get _absentCount => _members.where((m) => _status(m) == 'absent').length;
   int get _unmarkedCount => _members.length - _presentCount - _absentCount;
 
@@ -149,7 +154,9 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
             surface: _C.header,
             onSurface: _C.text,
           ),
-          datePickerTheme: const DatePickerThemeData(backgroundColor: _C.header),
+          datePickerTheme: const DatePickerThemeData(
+            backgroundColor: _C.header,
+          ),
           textButtonTheme: TextButtonThemeData(
             style: TextButton.styleFrom(foregroundColor: _C.accent),
           ),
@@ -192,6 +199,35 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
     }
   }
 
+  Future<void> _setCommunion(Map<String, dynamic> member) async {
+    final id = _id(member);
+    if (id == null || _savingIds.contains(id) || !_communionEligible(member)) {
+      return;
+    }
+    final oldStatus = _communionStatus(member);
+    final status = oldStatus == 'present' ? 'absent' : 'present';
+    setState(() {
+      _savingIds.add(id);
+      _error = null;
+      member['communionStatus'] = status;
+    });
+    try {
+      await _service.updateMemberCommunion(
+        date: _dateString,
+        memberId: id,
+        status: status,
+      );
+      if (mounted) setState(() => _savingIds.remove(id));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        member['communionStatus'] = oldStatus;
+        _savingIds.remove(id);
+        _error = _errorText(error);
+      });
+    }
+  }
+
   String? _id(Map<String, dynamic> member) {
     final id = (member['_id'] ?? member['id'])?.toString();
     return id == null || id.isEmpty ? null : id;
@@ -202,76 +238,100 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
     return status == 'present' || status == 'absent' ? status! : 'unmarked';
   }
 
+  bool _communionEligible(Map<String, dynamic> member) =>
+      member['communionEligible'] == true;
+
+  String _communionStatus(Map<String, dynamic> member) =>
+      member['communionStatus']?.toString().toLowerCase() == 'present'
+      ? 'present'
+      : 'absent';
+
   String _errorText(Object error) =>
       error.toString().replaceFirst('Exception: ', '');
 
   String _formattedDate(DateTime date) {
     const days = [
-      'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
     ];
     const months = [
-      'January', 'February', 'March', 'April', 'May', 'June', 'July',
-      'August', 'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     return '${days[date.weekday - 1]}, ${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: _C.bg,
-        appBar: AppBar(
-          backgroundColor: _C.bg,
-          surfaceTintColor: Colors.transparent,
-          foregroundColor: _C.text,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          title: Text('Add attendance', style: _T.display(17)),
-        ),
-        body: SafeArea(
-          child: _loading
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    color: _C.accent,
-                    strokeWidth: 3,
-                  ),
-                )
-              : _error != null && _members.isEmpty
-                  ? _errorView()
-                  : _members.isEmpty
-                      ? _emptyView()
-                      : _register(),
-        ),
-      );
+    backgroundColor: _C.bg,
+    appBar: AppBar(
+      backgroundColor: _C.bg,
+      surfaceTintColor: Colors.transparent,
+      foregroundColor: _C.text,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      title: Text('Add attendance', style: _T.display(17)),
+    ),
+    body: SafeArea(
+      child: _loading
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: _C.accent,
+                strokeWidth: 3,
+              ),
+            )
+          : _error != null && _members.isEmpty
+          ? _errorView()
+          : _members.isEmpty
+          ? _emptyView()
+          : _register(),
+    ),
+  );
 
   // ---------------------------------------------------------------- register
 
   Widget _register() => Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 820),
-          child: LayoutBuilder(
-            builder: (context, box) {
-              final wide = box.maxWidth >= 600;
-              return Padding(
-                padding: EdgeInsets.fromLTRB(wide ? 24 : 12, 4, wide ? 24 : 12, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _toolbar(wide),
-                    const SizedBox(height: 10),
-                    _summary(),
-                    if (_error != null) ...[
-                      const SizedBox(height: 10),
-                      _errorBanner(_error!),
-                    ],
-                    const SizedBox(height: 10),
-                    Expanded(child: _table(wide)),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      );
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 820),
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final wide = box.maxWidth >= 600;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(wide ? 24 : 12, 4, wide ? 24 : 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _toolbar(wide),
+                const SizedBox(height: 10),
+                _summary(),
+                if (_error != null) ...[
+                  const SizedBox(height: 10),
+                  _errorBanner(_error!),
+                ],
+                const SizedBox(height: 10),
+                Expanded(child: _table(wide)),
+              ],
+            ),
+          );
+        },
+      ),
+    ),
+  );
 
   Widget _toolbar(bool wide) {
     final date = _dateField();
@@ -290,135 +350,154 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
   }
 
   Widget _dateField() => Material(
-        color: _C.inputBg,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: const BorderSide(color: _C.inputBorder),
-        ),
-        child: InkWell(
-          onTap: _savingIds.isEmpty ? _chooseDate : null,
-          child: Container(
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                const Icon(Icons.calendar_month_rounded,
-                    size: 19, color: _C.inputIcon),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _formattedDate(_selectedDate),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _T.body(14,
-                        weight: FontWeight.w700, color: _C.inputText),
-                  ),
-                ),
-                Text('Sundays', style: _T.body(12, color: _C.inputHint)),
-                const SizedBox(width: 4),
-                const Icon(Icons.expand_more_rounded,
-                    size: 20, color: _C.inputIcon),
-              ],
-            ),
-          ),
-        ),
-      );
-
-  Widget _searchField() => SizedBox(
+    color: _C.inputBg,
+    clipBehavior: Clip.antiAlias,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(8),
+      side: const BorderSide(color: _C.inputBorder),
+    ),
+    child: InkWell(
+      onTap: _savingIds.isEmpty ? _chooseDate : null,
+      child: Container(
         height: 44,
-        child: TextField(
-          controller: _search,
-          cursorColor: _C.inputText,
-          style: _T.body(14, weight: FontWeight.w600, color: _C.inputText),
-          decoration: InputDecoration(
-            hintText: 'Search members by name',
-            hintStyle: _T.body(14, color: _C.inputHint),
-            prefixIcon:
-                const Icon(Icons.search_rounded, size: 20, color: _C.inputIcon),
-            suffixIcon: _query.isEmpty
-                ? null
-                : IconButton(
-                    onPressed: _search.clear,
-                    icon: const Icon(Icons.close_rounded,
-                        size: 18, color: _C.inputIcon),
-                  ),
-            filled: true,
-            fillColor: _C.inputBg,
-            isDense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            border: _inputBorder(),
-            enabledBorder: _inputBorder(),
-            focusedBorder: _inputBorder(_C.inputFocus, 1.5),
-          ),
-        ),
-      );
-
-  OutlineInputBorder _inputBorder([Color color = _C.inputBorder, double width = 1]) =>
-      OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: color, width: width),
-      );
-
-  Widget _summary() => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: _C.table,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _C.border),
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
           children: [
-            _stat('Present', _presentCount, _C.success),
-            _statDivider(),
-            _stat('Absent', _absentCount, _C.error),
-            _statDivider(),
-            _stat('Unmarked', _unmarkedCount, _C.textSubtle),
-          ],
-        ),
-      );
-
-  Widget _statDivider() => Container(
-        width: 1,
-        height: 18,
-        margin: const EdgeInsets.symmetric(horizontal: 10),
-        color: _C.border,
-      );
-
-  Widget _stat(String label, int value, Color color) => Expanded(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 7,
-              height: 7,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            const Icon(
+              Icons.calendar_month_rounded,
+              size: 19,
+              color: _C.inputIcon,
             ),
-            const SizedBox(width: 7),
-            Text('$value', style: _T.number(17, color: _C.text)),
-            const SizedBox(width: 6),
-            Flexible(
+            const SizedBox(width: 10),
+            Expanded(
               child: Text(
-                label,
+                _formattedDate(_selectedDate),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: _T.body(12, weight: FontWeight.w600, color: _C.text2),
+                style: _T.body(
+                  14,
+                  weight: FontWeight.w700,
+                  color: _C.inputText,
+                ),
               ),
+            ),
+            Text('Sundays', style: _T.body(12, color: _C.inputHint)),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.expand_more_rounded,
+              size: 20,
+              color: _C.inputIcon,
             ),
           ],
         ),
-      );
+      ),
+    ),
+  );
+
+  Widget _searchField() => SizedBox(
+    height: 44,
+    child: TextField(
+      controller: _search,
+      cursorColor: _C.inputText,
+      style: _T.body(14, weight: FontWeight.w600, color: _C.inputText),
+      decoration: InputDecoration(
+        hintText: 'Search members by name',
+        hintStyle: _T.body(14, color: _C.inputHint),
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          size: 20,
+          color: _C.inputIcon,
+        ),
+        suffixIcon: _query.isEmpty
+            ? null
+            : IconButton(
+                onPressed: _search.clear,
+                icon: const Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: _C.inputIcon,
+                ),
+              ),
+        filled: true,
+        fillColor: _C.inputBg,
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
+        border: _inputBorder(),
+        enabledBorder: _inputBorder(),
+        focusedBorder: _inputBorder(_C.inputFocus, 1.5),
+      ),
+    ),
+  );
+
+  OutlineInputBorder _inputBorder([
+    Color color = _C.inputBorder,
+    double width = 1,
+  ]) => OutlineInputBorder(
+    borderRadius: BorderRadius.circular(8),
+    borderSide: BorderSide(color: color, width: width),
+  );
+
+  Widget _summary() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+    decoration: BoxDecoration(
+      color: _C.table,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: _C.border),
+    ),
+    child: Row(
+      children: [
+        _stat('Present', _presentCount, _C.success),
+        _statDivider(),
+        _stat('Absent', _absentCount, _C.error),
+        _statDivider(),
+        _stat('Unmarked', _unmarkedCount, _C.textSubtle),
+      ],
+    ),
+  );
+
+  Widget _statDivider() => Container(
+    width: 1,
+    height: 18,
+    margin: const EdgeInsets.symmetric(horizontal: 10),
+    color: _C.border,
+  );
+
+  Widget _stat(String label, int value, Color color) => Expanded(
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 7),
+        Text('$value', style: _T.number(17, color: _C.text)),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: _T.body(12, weight: FontWeight.w600, color: _C.text2),
+          ),
+        ),
+      ],
+    ),
+  );
 
   // ------------------------------------------------------------------- table
 
   Widget _table(bool wide) {
-    final btnW = wide ? 96.0 : 70.0;
+    final btnW = wide ? 86.0 : 54.0;
     final btnH = wide ? 34.0 : 32.0;
     final rowH = wide ? 48.0 : 46.0;
     final gap = wide ? 8.0 : 6.0;
     final hPad = wide ? 16.0 : 10.0;
-    final attendW = btnW * 2 + gap;
+    final attendW = btnW * 3 + gap * 2;
     final members = _visibleMembers;
 
     return Container(
@@ -498,8 +577,12 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
               member['name']?.toString() ?? 'Unnamed member',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: _T.body(14,
-                  weight: FontWeight.w600, color: _C.text, height: 1.2),
+              style: _T.body(
+                14,
+                weight: FontWeight.w600,
+                color: _C.text,
+                height: 1.2,
+              ),
             ),
           ),
           SizedBox(
@@ -520,7 +603,57 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
           _statusButton(member, 'present', btnW, btnH, saving),
           SizedBox(width: gap),
           _statusButton(member, 'absent', btnW, btnH, saving),
+          SizedBox(width: gap),
+          _communionButton(member, btnW, btnH, saving),
         ],
+      ),
+    );
+  }
+
+  Widget _communionButton(
+    Map<String, dynamic> member,
+    double width,
+    double height,
+    bool saving,
+  ) {
+    final eligible = _communionEligible(member);
+    final selected = eligible && _communionStatus(member) == 'present';
+    return Tooltip(
+      message: eligible
+          ? 'Communion attendance'
+          : 'Available on the second Sunday for baptized members',
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Material(
+          color: selected
+              ? _C.accent.withValues(alpha: 0.18)
+              : Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(6),
+            side: BorderSide(
+              color: selected ? _C.accent.withValues(alpha: .7) : _C.border,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: saving || !eligible ? null : () => _setCommunion(member),
+            child: Center(
+              child: Text(
+                'C',
+                style: _T.body(
+                  12,
+                  weight: FontWeight.w700,
+                  color: selected
+                      ? _C.accent
+                      : eligible
+                      ? _C.text2
+                      : _C.textSubtle.withValues(alpha: .45),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -565,7 +698,7 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
                   const SizedBox(width: 3),
                 ],
                 Text(
-                  present ? 'Present' : 'Absent',
+                  present ? 'P' : 'A',
                   maxLines: 1,
                   style: _T.body(
                     12,
@@ -584,89 +717,89 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
   // ------------------------------------------------------------------ states
 
   Widget _noMatches() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.person_search_outlined,
-                  size: 32, color: _C.text2),
-              const SizedBox(height: 10),
-              Text('No matching members', style: _T.display(18)),
-              const SizedBox(height: 4),
-              Text('Try another name or clear the search.',
-                  textAlign: TextAlign.center, style: _T.body(13)),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.person_search_outlined, size: 32, color: _C.text2),
+          const SizedBox(height: 10),
+          Text('No matching members', style: _T.display(18)),
+          const SizedBox(height: 4),
+          Text(
+            'Try another name or clear the search.',
+            textAlign: TextAlign.center,
+            style: _T.body(13),
           ),
-        ),
-      );
+        ],
+      ),
+    ),
+  );
 
   Widget _emptyView() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.people_outline_rounded,
-                  size: 40, color: _C.text2),
-              const SizedBox(height: 16),
-              Text('No members found', style: _T.display(24)),
-              const SizedBox(height: 8),
-              Text('Add members before taking attendance.',
-                  style: _T.body(15)),
-            ],
-          ),
-        ),
-      );
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.people_outline_rounded, size: 40, color: _C.text2),
+          const SizedBox(height: 16),
+          Text('No members found', style: _T.display(24)),
+          const SizedBox(height: 8),
+          Text('Add members before taking attendance.', style: _T.body(15)),
+        ],
+      ),
+    ),
+  );
 
   Widget _errorView() => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.cloud_off_rounded, size: 40, color: _C.error),
-              const SizedBox(height: 16),
-              Text('Could not load attendance', style: _T.display(24)),
-              const SizedBox(height: 8),
-              Text(
-                _error ?? 'Please try again.',
-                textAlign: TextAlign.center,
-                style: _T.body(15),
-              ),
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: _C.accent,
-                  foregroundColor: _C.ink,
-                ),
-                onPressed: _loadAttendance,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry'),
-              ),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.cloud_off_rounded, size: 40, color: _C.error),
+          const SizedBox(height: 16),
+          Text('Could not load attendance', style: _T.display(24)),
+          const SizedBox(height: 8),
+          Text(
+            _error ?? 'Please try again.',
+            textAlign: TextAlign.center,
+            style: _T.body(15),
           ),
-        ),
-      );
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: _C.accent,
+              foregroundColor: _C.ink,
+            ),
+            onPressed: _loadAttendance,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Retry'),
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _errorBanner(String message) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: _C.error.withValues(alpha: .10),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _C.error.withValues(alpha: .35)),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+    decoration: BoxDecoration(
+      color: _C.error.withValues(alpha: .10),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: _C.error.withValues(alpha: .35)),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.error_outline_rounded, color: _C.error, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            message,
+            style: _T.body(13, weight: FontWeight.w500, color: _C.text),
+          ),
         ),
-        child: Row(
-          children: [
-            const Icon(Icons.error_outline_rounded, color: _C.error, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: _T.body(13, weight: FontWeight.w500, color: _C.text),
-              ),
-            ),
-          ],
-        ),
-      );
+      ],
+    ),
+  );
 }

@@ -1,10 +1,15 @@
 import 'package:excel/excel.dart';
 
 class WeeklyAttendanceMember {
-  const WeeklyAttendanceMember({required this.name, required this.status});
+  const WeeklyAttendanceMember({
+    required this.name,
+    required this.status,
+    this.communionStatus = 'not_applicable',
+  });
 
   final String name;
   final String status;
+  final String communionStatus;
 }
 
 class MonthlyAttendanceMember {
@@ -17,7 +22,7 @@ class MonthlyAttendanceMember {
 class AttendanceReportWorkbook {
   AttendanceReportWorkbook._();
 
-  static const _churchName = 'church';
+  static const _churchName = 'Church';
   static const _sheetGreen = 'FF1B5E20';
   static final _border = Border(
     borderStyle: BorderStyle.Thin,
@@ -32,35 +37,33 @@ class AttendanceReportWorkbook {
     final excel = Excel.createExcel();
     const sheetName = 'Weekly Attendance';
     excel.rename('Sheet1', sheetName);
-    final columnCount = 4;
+    final columnCount = 5;
 
     _mergeRow(excel, sheetName, 0, columnCount);
     _writeRow(excel, sheetName, 0, [_churchName], style: _titleStyle);
     _mergeRow(excel, sheetName, 1, columnCount);
-    _writeRow(
-      excel,
-      sheetName,
-      1,
-      ['Weekly Attendance Report'],
-      style: _subtitleStyle,
-    );
+    _writeRow(excel, sheetName, 1, [
+      'Weekly Attendance Report',
+    ], style: _subtitleStyle);
     _mergeRow(excel, sheetName, 2, columnCount);
     _writeRow(excel, sheetName, 2, ['Attendance Date: $date']);
     _mergeRow(excel, sheetName, 3, columnCount);
     _writeRow(excel, sheetName, 3, ['Report Generated: $generatedDate']);
 
     const headerRow = 5;
-    _writeRow(
-      excel,
-      sheetName,
-      headerRow,
-      ['S.No.', 'Member Name', 'Attendance Status', 'Attendance Date'],
-      style: _headerStyle,
-    );
+    _writeRow(excel, sheetName, headerRow, [
+      'S.No.',
+      'Member Name',
+      'Attendance Status',
+      'Attendance Date',
+      'Communion Status',
+    ], style: _headerStyle);
 
     var present = 0;
     var absent = 0;
     var unmarked = 0;
+    var communionPresent = 0;
+    var communionAbsent = 0;
     for (var index = 0; index < members.length; index++) {
       final member = members[index];
       final status = _normalizeStatus(member.status);
@@ -72,28 +75,33 @@ class AttendanceReportWorkbook {
         default:
           unmarked++;
       }
+      final communion = _normalizeCommunionStatus(member.communionStatus);
+      if (communion == 'Present') communionPresent++;
+      if (communion == 'Absent') communionAbsent++;
       _writeRow(excel, sheetName, headerRow + index + 1, [
         '${index + 1}',
         member.name,
         status,
         date,
+        communion,
       ], style: _bodyStyle);
     }
 
     final totalsRow = headerRow + members.length + 2;
-    _writeRow(
-      excel,
-      sheetName,
-      totalsRow,
-      ['Totals', 'Present: $present', 'Absent: $absent', 'Unmarked: $unmarked'],
-      style: _summaryStyle,
-    );
+    _writeRow(excel, sheetName, totalsRow, [
+      'Totals',
+      'Present: $present',
+      'Absent: $absent',
+      'Unmarked: $unmarked',
+      'Communion P: $communionPresent / A: $communionAbsent',
+    ], style: _summaryStyle);
 
     final sheet = excel[sheetName];
     sheet.setColumnWidth(0, 10);
     sheet.setColumnWidth(1, 32);
     sheet.setColumnWidth(2, 24);
     sheet.setColumnWidth(3, 20);
+    sheet.setColumnWidth(4, 24);
 
     return _encode(excel);
   }
@@ -105,31 +113,23 @@ class AttendanceReportWorkbook {
     required List<DateTime> sundays,
     required List<MonthlyAttendanceMember> members,
     required Map<String, Map<String, String>> statusByMemberAndDate,
+    Map<String, Map<String, String>> communionByMemberAndDate = const {},
   }) {
     final excel = Excel.createExcel();
     const sheetName = 'Monthly Attendance';
     excel.rename('Sheet1', sheetName);
 
     final finalColumn = sundays.length + 2;
-    final columnCount = finalColumn + 1;
+    final communionColumn = finalColumn + 1;
+    final columnCount = communionColumn + 1;
     final monthName = _monthName(month);
 
     _mergeRow(excel, sheetName, 0, columnCount);
-    _writeRow(
-      excel,
-      sheetName,
-      0,
-      [_churchName],
-      style: _titleStyle,
-    );
+    _writeRow(excel, sheetName, 0, [_churchName], style: _titleStyle);
     _mergeRow(excel, sheetName, 1, columnCount);
-    _writeRow(
-      excel,
-      sheetName,
-      1,
-      ['$monthName $year Attendance Report'],
-      style: _subtitleStyle,
-    );
+    _writeRow(excel, sheetName, 1, [
+      '$monthName $year Attendance Report',
+    ], style: _subtitleStyle);
     _mergeRow(excel, sheetName, 2, columnCount);
     _writeRow(excel, sheetName, 2, ['Report Generated: $generatedDate']);
 
@@ -137,6 +137,7 @@ class AttendanceReportWorkbook {
     final headers = <String>['S.No.', 'Member Name'];
     headers.addAll(sundays.map((date) => _dateKey(date)));
     headers.add('Present / Absent / Attendance %');
+    headers.add('Communion Present / Absent');
     _writeRow(excel, sheetName, headerRow, headers, style: _headerStyle);
 
     final dateTotals = List.generate(
@@ -156,39 +157,44 @@ class AttendanceReportWorkbook {
           statusByMemberAndDate[member.id]?[key] ?? 'unmarked',
         );
         statuses.add(status);
-        dateTotals[sundayIndex][status] =
-            dateTotals[sundayIndex][status]! + 1;
+        dateTotals[sundayIndex][status] = dateTotals[sundayIndex][status]! + 1;
         if (status == 'Present') present++;
         if (status == 'Absent') absent++;
       }
 
       final marked = present + absent;
       final percentage = marked == 0 ? 0.0 : present / marked * 100;
+      var communionPresent = 0;
+      var communionAbsent = 0;
+      for (final sunday in sundays) {
+        final communion = _normalizeCommunionStatus(
+          communionByMemberAndDate[member.id]?[_dateKey(sunday)] ??
+              'not_applicable',
+        );
+        if (communion == 'Present') communionPresent++;
+        if (communion == 'Absent') communionAbsent++;
+      }
       _writeRow(excel, sheetName, rowIndex++, [
         '${memberIndex + 1}',
         member.name,
         ...statuses,
         'Present: $present; Absent: $absent; '
             'Attendance: ${percentage.toStringAsFixed(1)}%',
+        'Present: $communionPresent; Absent: $communionAbsent',
       ], style: _bodyStyle);
     }
 
     rowIndex++;
     _mergeRow(excel, sheetName, rowIndex, columnCount);
-    _writeRow(
-      excel,
-      sheetName,
-      rowIndex++,
-      ['Overall Attendance Totals by Sunday'],
-      style: _subtitleStyle,
-    );
-    _writeRow(
-      excel,
-      sheetName,
-      rowIndex++,
-      ['Sunday', 'Present', 'Absent', 'Unmarked'],
-      style: _headerStyle,
-    );
+    _writeRow(excel, sheetName, rowIndex++, [
+      'Overall Attendance Totals by Sunday',
+    ], style: _subtitleStyle);
+    _writeRow(excel, sheetName, rowIndex++, [
+      'Sunday',
+      'Present',
+      'Absent',
+      'Unmarked',
+    ], style: _headerStyle);
     for (var index = 0; index < sundays.length; index++) {
       final totals = dateTotals[index];
       _writeRow(excel, sheetName, rowIndex++, [
@@ -206,6 +212,7 @@ class AttendanceReportWorkbook {
       sheet.setColumnWidth(index + 2, 18);
     }
     sheet.setColumnWidth(finalColumn, 42);
+    sheet.setColumnWidth(communionColumn, 32);
 
     return _encode(excel);
   }
@@ -255,6 +262,17 @@ class AttendanceReportWorkbook {
         return 'Absent';
       default:
         return 'Unmarked';
+    }
+  }
+
+  static String _normalizeCommunionStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'present':
+        return 'Present';
+      case 'absent':
+        return 'Absent';
+      default:
+        return 'N/A';
     }
   }
 

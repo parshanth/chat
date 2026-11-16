@@ -16,8 +16,16 @@ void main() {
         date: '2026-10-25',
         generatedDate: '2026-10-22',
         members: const [
-          WeeklyAttendanceMember(name: 'Member One', status: 'present'),
-          WeeklyAttendanceMember(name: 'Member Two', status: 'absent'),
+          WeeklyAttendanceMember(
+            name: 'Member One',
+            status: 'present',
+            communionStatus: 'present',
+          ),
+          WeeklyAttendanceMember(
+            name: 'Member Two',
+            status: 'absent',
+            communionStatus: 'absent',
+          ),
           WeeklyAttendanceMember(name: 'Member Three', status: 'unmarked'),
         ],
       );
@@ -32,9 +40,13 @@ void main() {
       expect(_cellText(sheet, 2, 6), 'Present');
       expect(_cellText(sheet, 2, 7), 'Absent');
       expect(_cellText(sheet, 2, 8), 'Unmarked');
+      expect(_cellText(sheet, 4, 6), 'Present');
+      expect(_cellText(sheet, 4, 7), 'Absent');
+      expect(_cellText(sheet, 4, 8), 'N/A');
       expect(_cellText(sheet, 1, 10), 'Present: 1');
       expect(_cellText(sheet, 2, 10), 'Absent: 1');
       expect(_cellText(sheet, 3, 10), 'Unmarked: 1');
+      expect(_cellText(sheet, 4, 10), 'Communion P: 1 / A: 1');
     });
 
     test(

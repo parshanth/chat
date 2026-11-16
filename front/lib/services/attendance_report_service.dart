@@ -30,6 +30,8 @@ class AttendanceReportService {
       return WeeklyAttendanceMember(
         name: _memberName(member),
         status: member['status']?.toString() ?? 'unmarked',
+        communionStatus:
+            member['communionStatus']?.toString() ?? 'not_applicable',
       );
     }).toList();
 
@@ -57,6 +59,7 @@ class AttendanceReportService {
     final sundays = AttendanceChartData.sundaysInMonth(year, month);
     final membersById = <String, MonthlyAttendanceMember>{};
     final statusByMemberAndDate = <String, Map<String, String>>{};
+    final communionByMemberAndDate = <String, Map<String, String>>{};
 
     for (final sunday in sundays) {
       final date = AttendanceChartData.dateKey(sunday);
@@ -75,6 +78,8 @@ class AttendanceReportService {
         );
         statusByMemberAndDate.putIfAbsent(id, () => {})[date] =
             member['status']?.toString() ?? 'unmarked';
+        communionByMemberAndDate.putIfAbsent(id, () => {})[date] =
+            member['communionStatus']?.toString() ?? 'not_applicable';
       }
     }
 
@@ -86,6 +91,7 @@ class AttendanceReportService {
       sundays: sundays,
       members: membersById.values.toList(),
       statusByMemberAndDate: statusByMemberAndDate,
+      communionByMemberAndDate: communionByMemberAndDate,
     );
     final monthValue = month.toString().padLeft(2, '0');
     final filename = 'Monthly_Attendance_$year-$monthValue.xlsx';

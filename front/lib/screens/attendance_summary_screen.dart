@@ -420,14 +420,24 @@ class _WeekStats {
     required this.present,
     required this.absent,
     required this.unmarked,
+    required this.communionPresent,
+    required this.communionAbsent,
   });
 
-  static const empty = _WeekStats._(present: [], absent: [], unmarked: []);
+  static const empty = _WeekStats._(
+    present: [],
+    absent: [],
+    unmarked: [],
+    communionPresent: [],
+    communionAbsent: [],
+  );
 
   factory _WeekStats.from(List<_Json> members) {
     final present = <_Json>[];
     final absent = <_Json>[];
     final unmarked = <_Json>[];
+    final communionPresent = <_Json>[];
+    final communionAbsent = <_Json>[];
 
     for (final member in members) {
       switch (member['status']?.toString().trim().toLowerCase()) {
@@ -438,6 +448,13 @@ class _WeekStats {
         default:
           unmarked.add(member);
       }
+      if (member['communionEligible'] == true) {
+        if (member['communionStatus']?.toString().toLowerCase() == 'present') {
+          communionPresent.add(member);
+        } else {
+          communionAbsent.add(member);
+        }
+      }
     }
 
     int byName(_Json a, _Json b) => _summaryMemberName(
@@ -445,13 +462,23 @@ class _WeekStats {
     ).toLowerCase().compareTo(_summaryMemberName(b).toLowerCase());
     present.sort(byName);
     absent.sort(byName);
+    communionPresent.sort(byName);
+    communionAbsent.sort(byName);
 
-    return _WeekStats._(present: present, absent: absent, unmarked: unmarked);
+    return _WeekStats._(
+      present: present,
+      absent: absent,
+      unmarked: unmarked,
+      communionPresent: communionPresent,
+      communionAbsent: communionAbsent,
+    );
   }
 
   final List<_Json> present;
   final List<_Json> absent;
   final List<_Json> unmarked;
+  final List<_Json> communionPresent;
+  final List<_Json> communionAbsent;
 
   int get total => present.length + absent.length + unmarked.length;
 }
@@ -942,6 +969,39 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
           key: ValueKey('present-$date'),
           members: _stats.present.map(_summaryMemberName).toList(),
         ),
+        if (_stats.communionPresent.isNotEmpty ||
+            _stats.communionAbsent.isNotEmpty) ...[
+          const SizedBox(height: 32),
+          _SectionHeader(
+            title: 'Communion absentees',
+            count: _stats.communionAbsent.length,
+            color: _C.error,
+          ),
+          const SizedBox(height: 14),
+          if (_stats.communionAbsent.isEmpty)
+            const _InfoCard(
+              message: 'All eligible members received Communion.',
+              icon: Icons.check_circle_outline_rounded,
+              iconColor: _C.success,
+            )
+          else
+            for (final member in _stats.communionAbsent) ...[
+              _AbsenteeTile(
+                member: member,
+                name: _summaryMemberName(member),
+                phone: member['phoneNumber']?.toString().trim() ?? '',
+                onOpen: _openMemberAttendanceDetails,
+                onCopyPhone: _copyPhoneNumber,
+              ),
+              const SizedBox(height: 10),
+            ],
+          const SizedBox(height: 22),
+          _PresentSection(
+            key: ValueKey('communion-present-$date'),
+            title: 'Communion presentees',
+            members: _stats.communionPresent.map(_summaryMemberName).toList(),
+          ),
+        ],
       ],
     );
   }
@@ -1153,9 +1213,14 @@ class _AbsenteeTile extends StatelessWidget {
 
 /// Collapsible roster of present members shown as compact chips.
 class _PresentSection extends StatefulWidget {
-  const _PresentSection({super.key, required this.members});
+  const _PresentSection({
+    super.key,
+    required this.members,
+    this.title = 'Present',
+  });
 
   final List<String> members;
+  final String title;
 
   @override
   State<_PresentSection> createState() => _PresentSectionState();
@@ -1200,11 +1265,11 @@ class _PresentSectionState extends State<_PresentSection> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Present', style: _T.display(17)),
+                        Text(widget.title, style: _T.display(17)),
                         const SizedBox(height: 3),
                         Text(
                           members.isEmpty
-                              ? 'No one marked present'
+                              ? 'No members'
                               : '${members.length} '
                                     '${members.length == 1 ? 'member' : 'members'}',
                           style: _T.body(13, color: _C.textSubtle),

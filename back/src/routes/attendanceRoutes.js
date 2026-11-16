@@ -5,7 +5,8 @@ const {
   getAttendance,
   updateMemberAttendance,
   saveAttendance,
-    getAttendanceSummary,
+  updateMemberCommunion,
+  getAttendanceSummary,
 } = require("../controllers/attendanceController");
 
 const authMiddleware = require("../middleware/authMiddleware");
@@ -34,6 +35,9 @@ router.get("/summary", getAttendanceSummary);
 
 // Save one member's status immediately.
 router.patch("/member", updateMemberAttendance);
+
+// Save Communion independently from ordinary attendance.
+router.patch("/communion", updateMemberCommunion);
 
 // Save the complete attendance selection.
 router.put("/", saveAttendance);
