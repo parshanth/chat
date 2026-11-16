@@ -4,10 +4,12 @@ class _MemberAttendanceHistoryEntry {
   const _MemberAttendanceHistoryEntry({
     required this.date,
     required this.status,
+    required this.communionStatus,
   });
 
   final DateTime date;
   final String status;
+  final String communionStatus;
 }
 
 Future<List<_MemberAttendanceHistoryEntry>> _loadMemberAttendanceHistory({
@@ -34,12 +36,19 @@ Future<List<_MemberAttendanceHistoryEntry>> _loadMemberAttendanceHistory({
     }
 
     final status = session['memberStatus']?.toString().toLowerCase();
+    final communionStatus = session['memberCommunionStatus']
+        ?.toString()
+        .toLowerCase();
     history.add(
       _MemberAttendanceHistoryEntry(
         date: date,
         status: status == 'present' || status == 'absent'
             ? status!
             : 'unmarked',
+        communionStatus:
+            communionStatus == 'present' || communionStatus == 'absent'
+            ? communionStatus!
+            : 'not_applicable',
       ),
     );
   }
@@ -597,6 +606,7 @@ class _MemberAttendanceDetailScreenState
   bool _editingMember = false;
   String? _error;
   Map<String, String> _statusByDate = {};
+  Map<String, String> _communionStatusByDate = {};
   Set<String> _sessionDates = {};
 
   @override
@@ -625,6 +635,10 @@ class _MemberAttendanceDetailScreenState
         for (final entry in history)
           AttendanceChartData.dateKey(entry.date): entry.status,
       };
+      final communionStatusByDate = <String, String>{
+        for (final entry in history)
+          AttendanceChartData.dateKey(entry.date): entry.communionStatus,
+      };
       final sessionDates = history
           .map((entry) => AttendanceChartData.dateKey(entry.date))
           .toSet();
@@ -633,6 +647,7 @@ class _MemberAttendanceDetailScreenState
 
       setState(() {
         _statusByDate = statusByDate;
+        _communionStatusByDate = communionStatusByDate;
         _sessionDates = sessionDates;
         _loading = false;
       });
@@ -1084,6 +1099,55 @@ class _MemberAttendanceDetailScreenState
             ),
           const SizedBox(height: 22),
           _statistics(counts, percentage: counts.attendancePercentage),
+          const SizedBox(height: 16),
+          _communionStatus(sundays),
+        ],
+      ),
+    );
+  }
+
+  Widget _communionStatus(List<DateTime> sundays) {
+    final communionSunday = sundays.firstWhere(
+      (sunday) => sunday.day >= 8 && sunday.day <= 14,
+    );
+    final status =
+        _communionStatusByDate[AttendanceChartData.dateKey(communionSunday)] ??
+        'not_applicable';
+    final eligible = status != 'not_applicable';
+    final present = status == 'present';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _C.bg2,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _C.border),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.wine_bar_rounded,
+            size: 18,
+            color: eligible ? (present ? _C.success : _C.error) : _C.textSubtle,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Communion · ${communionSunday.day} ${_shortMonths[communionSunday.month - 1]}',
+              style: _T.body(13, weight: FontWeight.w600, color: _C.text),
+            ),
+          ),
+          Text(
+            eligible ? (present ? 'Present' : 'Absent') : 'Not eligible',
+            style: _T.body(
+              13,
+              weight: FontWeight.w700,
+              color: eligible
+                  ? (present ? _C.success : _C.error)
+                  : _C.textSubtle,
+            ),
+          ),
         ],
       ),
     );

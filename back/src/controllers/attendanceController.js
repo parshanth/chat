@@ -489,11 +489,15 @@ const getAttendanceSummary = async (req, res) => {
       };
     }
 
-    const [records, totalMembers, totalBaptizedMembers] = await Promise.all([
+    const [records, totalMembers, totalBaptizedMembers, selectedMember] =
+      await Promise.all([
       Attendance.find(filter).sort({ date: -1 }).lean(),
       Member.countDocuments(),
       Member.countDocuments({ baptismDate: { $ne: null } }),
-    ]);
+      memberId
+        ? Member.findById(memberId).select("baptismDate").lean()
+        : Promise.resolve(null),
+      ]);
 
     const summaries = records.map((record) => {
       const memberEntry = memberId
@@ -523,6 +527,11 @@ const getAttendanceSummary = async (req, res) => {
       const communionAbsent = communionApplicable
         ? Math.max(totalBaptizedMembers - communionPresent, 0)
         : 0;
+      const memberCommunionEntry = memberId
+        ? communionEntries.find((entry) => entry.member.toString() === memberId)
+        : undefined;
+      const memberCommunionEligible =
+        communionApplicable && Boolean(selectedMember?.baptismDate);
 
       return {
         date: record.date.toISOString().slice(0, 10),
@@ -539,7 +548,12 @@ const getAttendanceSummary = async (req, res) => {
           absent: communionAbsent,
         },
         ...(memberId && includeMemberStatus
-          ? { memberStatus: memberEntry?.status ?? "unmarked" }
+          ? {
+              memberStatus: memberEntry?.status ?? "unmarked",
+              memberCommunionStatus: memberCommunionEligible
+                ? memberCommunionEntry?.status ?? "absent"
+                : "not_applicable",
+            }
           : {}),
       };
     });

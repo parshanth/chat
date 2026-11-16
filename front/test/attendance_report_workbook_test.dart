@@ -97,6 +97,8 @@ void main() {
           _cellText(sheet, 7, 5),
           'Present: 3; Absent: 1; Attendance: 75.0%',
         );
+        expect(_cellText(sheet, 8, 4), 'Communion');
+        expect(_cellText(sheet, 8, 5), 'N/A');
         expect(_cellText(sheet, 0, 11), '2023-04-09');
         expect(_cellText(sheet, 1, 11), '0');
         expect(_cellText(sheet, 2, 11), '1');

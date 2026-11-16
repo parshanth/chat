@@ -137,7 +137,7 @@ class AttendanceReportWorkbook {
     final headers = <String>['S.No.', 'Member Name'];
     headers.addAll(sundays.map((date) => _dateKey(date)));
     headers.add('Present / Absent / Attendance %');
-    headers.add('Communion Present / Absent');
+    headers.add('Communion');
     _writeRow(excel, sheetName, headerRow, headers, style: _headerStyle);
 
     final dateTotals = List.generate(
@@ -164,23 +164,22 @@ class AttendanceReportWorkbook {
 
       final marked = present + absent;
       final percentage = marked == 0 ? 0.0 : present / marked * 100;
-      var communionPresent = 0;
-      var communionAbsent = 0;
-      for (final sunday in sundays) {
-        final communion = _normalizeCommunionStatus(
-          communionByMemberAndDate[member.id]?[_dateKey(sunday)] ??
-              'not_applicable',
-        );
-        if (communion == 'Present') communionPresent++;
-        if (communion == 'Absent') communionAbsent++;
-      }
+      // Communion is held once, on the second Sunday, so a single status is
+      // more useful than a monthly total per member.
+      final communionSunday = sundays.firstWhere(
+        (sunday) => sunday.day >= 8 && sunday.day <= 14,
+      );
+      final communion = _normalizeCommunionStatus(
+        communionByMemberAndDate[member.id]?[_dateKey(communionSunday)] ??
+            'not_applicable',
+      );
       _writeRow(excel, sheetName, rowIndex++, [
         '${memberIndex + 1}',
         member.name,
         ...statuses,
         'Present: $present; Absent: $absent; '
             'Attendance: ${percentage.toStringAsFixed(1)}%',
-        'Present: $communionPresent; Absent: $communionAbsent',
+        communion,
       ], style: _bodyStyle);
     }
 

@@ -604,7 +604,12 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
           SizedBox(width: gap),
           _statusButton(member, 'absent', btnW, btnH, saving),
           SizedBox(width: gap),
-          _communionButton(member, btnW, btnH, saving),
+          if (_communionEligible(member))
+            _communionButton(member, btnW, btnH, saving)
+          // Keep the P/A controls aligned with rows that do have Communion,
+          // without rendering an unavailable C button.
+          else
+            SizedBox(width: btnW),
         ],
       ),
     );
@@ -616,12 +621,9 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
     double height,
     bool saving,
   ) {
-    final eligible = _communionEligible(member);
-    final selected = eligible && _communionStatus(member) == 'present';
+    final selected = _communionStatus(member) == 'present';
     return Tooltip(
-      message: eligible
-          ? 'Communion attendance'
-          : 'Available on the second Sunday for baptized members',
+      message: 'Communion attendance',
       child: SizedBox(
         width: width,
         height: height,
@@ -637,18 +639,14 @@ class _AddAttendanceScreenState extends State<AddAttendanceScreen> {
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: saving || !eligible ? null : () => _setCommunion(member),
+            onTap: saving ? null : () => _setCommunion(member),
             child: Center(
               child: Text(
                 'C',
                 style: _T.body(
                   12,
                   weight: FontWeight.w700,
-                  color: selected
-                      ? _C.accent
-                      : eligible
-                      ? _C.text2
-                      : _C.textSubtle.withValues(alpha: .45),
+                  color: selected ? _C.accent : _C.text2,
                 ),
               ),
             ),
