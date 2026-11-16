@@ -226,7 +226,7 @@ const updateMemberAttendance = async (req, res) => {
 
     await attendance.save();
 
-    logAttendanceChange(req, date, memberId, member.name, previousStatus, status);
+    await logAttendanceChange(req, date, memberId, member.name, previousStatus, status);
 
     return res.status(200).json({
       success: true,
@@ -305,7 +305,7 @@ const updateMemberCommunion = async (req, res) => {
       attendance.communionEntries[existingIndex].status = status;
     }
     await attendance.save();
-    logAttendanceChange(req, date, memberId, member.name, previousStatus, status, "communion");
+    await logAttendanceChange(req, date, memberId, member.name, previousStatus, status, "communion");
 
     return res.status(200).json({
       success: true,
@@ -413,7 +413,7 @@ const saveAttendance = async (req, res) => {
     }).select("_id name").lean();
     const names = new Map(changedMembers.map(member => [member._id.toString(), member.name]));
     for (const id of new Set([...before.keys(), ...after.keys()])) {
-      logAttendanceChange(req, date, id, names.get(id), before.get(id) ?? "unmarked", after.get(id) ?? "unmarked");
+      await logAttendanceChange(req, date, id, names.get(id), before.get(id) ?? "unmarked", after.get(id) ?? "unmarked");
     }
 
     return res.status(200).json({

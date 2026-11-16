@@ -9,6 +9,7 @@ import 'add_attendance_screen.dart';
 import 'attendance_summary_screen.dart';
 import 'login_screen.dart';
 import 'members_screen.dart';
+import 'activity_logs_screen.dart';
 
 // ---- Art direction tokens (local to this screen) ----
 class _C {
@@ -408,6 +409,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Text('REPORTS AND PEOPLE', style: _T.meta()),
           const SizedBox(height: 12),
           _secondaryGroup(),
+          _row(
+            icon: Icons.history_rounded,
+            title: 'Activity logs',
+            subtitle: 'View attendance changes',
+            onTap: () => openActivityLogs(context),
+          ),
           const SizedBox(height: 32),
           _row(
             icon: Icons.celebration_outlined,

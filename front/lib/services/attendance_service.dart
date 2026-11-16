@@ -11,6 +11,16 @@ class AttendanceService {
 
   static final AttendanceService instance = AttendanceService._();
 
+  Future<Map<String, dynamic>> getActivityLogs(String secret, {String? before}) async {
+    final response = await ApiHttpClient.send(
+      method: 'POST',
+      url: Uri.parse('${ApiConfig.baseUrl}/attendance/logs'),
+      headers: await _headers(),
+      body: jsonEncode({'secret': secret, if (before != null) 'before': before}),
+    );
+    return _decodeResponse(response);
+  }
+
   Future<Map<String, String>> _headers() async {
     final token = await SecureStorage.getToken();
 
