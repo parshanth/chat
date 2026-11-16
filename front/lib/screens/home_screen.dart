@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/auth_user.dart';
+import '../widgets/celebrations.dart';
 import '../services/auth_service.dart';
 import '../utils/secure_storage.dart';
 import 'add_attendance_screen.dart';
@@ -76,6 +77,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final AuthService _authService = AuthService();
+  final _celebrationsKey = GlobalKey<CelebrationsState>();
 
   bool _isLoading = false;
   bool _verifyingSession = false;
@@ -185,21 +187,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _openMembers() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const MembersScreen()));
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const MembersScreen()))
+        .then((_) => _celebrationsKey.currentState?.refresh());
   }
 
   void _openAttendance() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const AddAttendanceScreen()));
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const AddAttendanceScreen()))
+        .then((_) => _celebrationsKey.currentState?.refresh());
   }
 
   void _openSummary() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const AttendanceSummaryScreen()));
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(builder: (_) => const AttendanceSummaryScreen()),
+        )
+        .then((_) => _celebrationsKey.currentState?.refresh());
   }
 
   /// Top bar now only holds the logout button (icon and name were removed).
@@ -404,6 +408,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Text('REPORTS AND PEOPLE', style: _T.meta()),
           const SizedBox(height: 12),
           _secondaryGroup(),
+          const SizedBox(height: 32),
+          _row(
+            icon: Icons.celebration_outlined,
+            title: 'Celebrations',
+            subtitle: 'Birthdays and wedding anniversaries',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => Scaffold(
+                  backgroundColor: _C.background,
+                  appBar: AppBar(
+                    title: Text('Celebrations', style: _T.title(20)),
+                    backgroundColor: _C.background,
+                    foregroundColor: _C.textPrimary,
+                  ),
+                  body: SafeArea(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 600),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(24),
+                          child: Celebrations(key: _celebrationsKey),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

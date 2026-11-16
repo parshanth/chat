@@ -1,5 +1,6 @@
 
 const Attendance = require("../models/Attendance");
+const { logAttendanceChange } = require("../utils/attendanceLog");
 const Member = require("../models/Member");
 const mongoose = require("mongoose");
 const { logError } = require("../utils/logging");
@@ -176,7 +177,7 @@ const updateMemberAttendance = async (req, res) => {
       });
     }
 
-    const member = await Member.findById(memberId).select("_id");
+    const member = await Member.findById(memberId).select("_id name");
 
     if (!member) {
       return res.status(404).json({
@@ -208,6 +209,7 @@ const updateMemberAttendance = async (req, res) => {
       (entry) => entry.member.toString() === memberId
     );
 
+    const previousStatus = existingIndex === -1 ? "unmarked" : attendance.entries[existingIndex].status;
     if (status === "unmarked") {
       if (existingIndex !== -1) {
         attendance.entries.splice(existingIndex, 1);
@@ -224,16 +226,7 @@ const updateMemberAttendance = async (req, res) => {
 
     await attendance.save();
 
-    console.log(
-      "[ATTENDANCE] Status changed",
-      JSON.stringify({
-        timestamp: new Date().toISOString(),
-        date: date.toISOString().slice(0, 10),
-        memberId,
-        status,
-        actorAccountNumber: req.user?.number ?? "unknown",
-      })
-    );
+    logAttendanceChange(req, date, memberId, member.name, previousStatus, status);
 
     return res.status(200).json({
       success: true,
@@ -283,7 +276,7 @@ const updateMemberCommunion = async (req, res) => {
       });
     }
 
-    const member = await Member.findById(memberId).select("_id baptismDate");
+    const member = await Member.findById(memberId).select("_id name baptismDate");
     if (!member) {
       return res
         .status(404)
@@ -305,12 +298,14 @@ const updateMemberCommunion = async (req, res) => {
     const existingIndex = attendance.communionEntries.findIndex(
       (entry) => entry.member.toString() === memberId
     );
+    const previousStatus = existingIndex === -1 ? "absent" : attendance.communionEntries[existingIndex].status;
     if (existingIndex === -1) {
       attendance.communionEntries.push({ member: memberId, status });
     } else {
       attendance.communionEntries[existingIndex].status = status;
     }
     await attendance.save();
+    logAttendanceChange(req, date, memberId, member.name, previousStatus, status, "communion");
 
     return res.status(200).json({
       success: true,
@@ -393,6 +388,7 @@ const saveAttendance = async (req, res) => {
 
     const { year, weekNumber } = calculateSundayWeek(date);
 
+    const previousAttendance = await Attendance.findOne({ date }).lean();
     const attendance = await Attendance.findOneAndUpdate(
       { date },
       {
@@ -410,18 +406,11 @@ const saveAttendance = async (req, res) => {
       }
     );
 
-    console.log(
-      "[ATTENDANCE] Statuses saved",
-      JSON.stringify({
-        timestamp: new Date().toISOString(),
-        date: date.toISOString().slice(0, 10),
-        actorAccountNumber: req.user?.number ?? "unknown",
-        entries: normalizedEntries.map((entry) => ({
-          memberId: entry.member,
-          status: entry.status,
-        })),
-      })
-    );
+    const before = new Map((previousAttendance?.entries ?? []).map(entry => [entry.member.toString(), entry.status]));
+    const after = new Map(normalizedEntries.map(entry => [entry.member.toString(), entry.status]));
+    for (const id of new Set([...before.keys(), ...after.keys()])) {
+      logAttendanceChange(req, date, id, undefined, before.get(id) ?? "unmarked", after.get(id) ?? "unmarked");
+    }
 
     return res.status(200).json({
       success: true,

@@ -4,16 +4,8 @@ const jwt = require("jsonwebtoken");
 const { logError } = require("../utils/logging");
 
 const register = async (req, res) => {
-  console.log("[REGISTER] Route execution started");
   try {
     const { number, password } = req.body;
-    console.log(
-      "[REGISTER] Required fields received",
-      JSON.stringify({
-        numberReceived: typeof number === "string" && Boolean(number.trim()),
-        passwordReceived: typeof password === "string" && Boolean(password),
-      })
-    );
 
     if (
       typeof number !== "string" ||
@@ -38,10 +30,6 @@ const register = async (req, res) => {
       logError("[MONGODB]", "Registration user lookup failed", error);
       throw error;
     }
-    console.log(
-      "[REGISTER] Existing user lookup completed",
-      JSON.stringify({ userAlreadyExists: Boolean(existingUser) })
-    );
 
     if (existingUser) {
       return res.status(409).json({
@@ -61,7 +49,6 @@ const register = async (req, res) => {
       logError("[MONGODB]", "Registration user creation failed", error);
       throw error;
     }
-    console.log("[REGISTER] User record created; awaiting approval");
 
     return res.status(201).json({
       success: true,
@@ -90,16 +77,8 @@ const register = async (req, res) => {
 };
 
 const login = async (req, res) => {
-  console.log("[LOGIN] Route execution started");
   try {
     const { number, password } = req.body;
-    console.log(
-      "[LOGIN] Required fields received",
-      JSON.stringify({
-        numberReceived: typeof number === "string" && Boolean(number.trim()),
-        passwordReceived: typeof password === "string" && Boolean(password),
-      })
-    );
 
     if (
       typeof number !== "string" ||
@@ -122,19 +101,8 @@ const login = async (req, res) => {
       logError("[MONGODB]", "Login user lookup failed", error);
       throw error;
     }
-    console.log(
-      "[LOGIN] User lookup completed",
-      JSON.stringify({ userFound: Boolean(user) })
-    );
 
     const passwordMatches = user ? await user.comparePassword(password) : false;
-    console.log(
-      "[LOGIN] Password comparison completed",
-      JSON.stringify({
-        performed: Boolean(user),
-        succeeded: passwordMatches,
-      })
-    );
 
     if (!user || !passwordMatches) {
       return res.status(401).json({
@@ -168,7 +136,6 @@ const login = async (req, res) => {
         process.env.JWT_SECRET,
         { expiresIn: "7d" }
       );
-      console.log("[LOGIN] JWT generation succeeded");
     } catch (error) {
       logError("[LOGIN]", "JWT generation failed", error);
       throw error;
@@ -195,7 +162,6 @@ const login = async (req, res) => {
 };
 
 const getMe = async (req, res) => {
-  console.log("[AUTH] Current-user route execution");
   return res.status(200).json({
     success: true,
     user: {

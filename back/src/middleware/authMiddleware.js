@@ -4,21 +4,10 @@ const AuthUser = require("../models/AuthUser");
 const { logError, safeUrl } = require("../utils/logging");
 
 const authMiddleware = async (req, res, next) => {
-  console.log(
-    "[AUTH] Middleware execution",
-    JSON.stringify({
-      method: req.method,
-      url: safeUrl(req.originalUrl),
-    })
-  );
   try {
     const authHeader = req.headers.authorization;
     const tokenReceived =
       typeof authHeader === "string" && authHeader.startsWith("Bearer ");
-    console.log(
-      "[AUTH] Authorization token received",
-      JSON.stringify({ tokenReceived })
-    );
 
     if (!tokenReceived) {
       return res.status(401).json({

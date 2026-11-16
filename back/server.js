@@ -25,18 +25,10 @@ app.use((req, res, next) => {
   const startedAt = Date.now();
   const requestUrl = safeUrl(req.originalUrl);
 
-  console.log(
-    "[REQUEST] Incoming",
-    JSON.stringify({
-      method: req.method,
-      url: requestUrl,
-      timestamp: requestTimestamp.toISOString(),
-    })
-  );
 
   res.on("finish", () => {
-    console.log(
-      "[REQUEST] Completed",
+    if (res.statusCode >= 400) console.warn(
+      "[REQUEST] Failed",
       JSON.stringify({
         method: req.method,
         url: requestUrl,
