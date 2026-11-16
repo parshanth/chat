@@ -408,8 +408,12 @@ const saveAttendance = async (req, res) => {
 
     const before = new Map((previousAttendance?.entries ?? []).map(entry => [entry.member.toString(), entry.status]));
     const after = new Map(normalizedEntries.map(entry => [entry.member.toString(), entry.status]));
+    const changedMembers = await Member.find({
+      _id: { $in: [...new Set([...before.keys(), ...after.keys()])] },
+    }).select("_id name").lean();
+    const names = new Map(changedMembers.map(member => [member._id.toString(), member.name]));
     for (const id of new Set([...before.keys(), ...after.keys()])) {
-      logAttendanceChange(req, date, id, undefined, before.get(id) ?? "unmarked", after.get(id) ?? "unmarked");
+      logAttendanceChange(req, date, id, names.get(id), before.get(id) ?? "unmarked", after.get(id) ?? "unmarked");
     }
 
     return res.status(200).json({
