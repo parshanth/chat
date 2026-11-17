@@ -569,7 +569,40 @@ const getAttendanceSummary = async (req, res) => {
   }
 };
 
+// All current members are included, even when they have no recorded marks.
+const getAttendanceLeaderboard = async (req, res) => {
+  const year = req.query.year === undefined
+    ? new Date().getUTCFullYear() : Number(req.query.year);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    return res.status(400).json({ success: false, message: "Provide a valid year between 2000 and 2100." });
+  }
+  try {
+    const [members, records] = await Promise.all([
+      Member.find().select("name").lean(),
+      Attendance.find({ date: {
+        $gte: new Date(Date.UTC(year, 0, 1)),
+        $lt: new Date(Date.UTC(year + 1, 0, 1)),
+      } }).select("entries").lean(),
+    ]);
+    const totals = new Map(members.map(member => [member._id.toString(), {
+      memberId: member._id.toString(), name: member.name, present: 0, absent: 0,
+    }]));
+    for (const record of records) {
+      for (const entry of record.entries ?? []) {
+        const total = totals.get(entry.member.toString());
+        if (total && ["present", "absent"].includes(entry.status)) total[entry.status]++;
+      }
+    }
+    return res.status(200).json({ success: true, data: {
+      year, attendanceSessions: records.length, members: [...totals.values()],
+    } });
+  } catch (error) {
+    return sendError(res, error);
+  }
+};
+
 module.exports = {
+  getAttendanceLeaderboard,
   getAttendance,
   updateMemberAttendance,
   saveAttendance,

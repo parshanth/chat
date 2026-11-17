@@ -133,6 +133,17 @@ class AttendanceService {
   }
 
   /// Loads attendance summaries for a selected year.
+  Future<Map<String, dynamic>> getAttendanceLeaderboard(int year) async {
+    final response = await ApiHttpClient.send(
+      method: 'GET',
+      url: Uri.parse('${ApiConfig.baseUrl}/attendance/leaderboard')
+          .replace(queryParameters: {'year': '$year'}),
+      headers: await _headers(),
+    );
+    return _decodeResponse(response);
+  }
+
+  /// Loads attendance summaries for a selected year.
   /// Optionally filters the history to a specific member.
   Future<Map<String, dynamic>> getAttendanceSummary({
     int? year,

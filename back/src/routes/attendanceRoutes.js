@@ -7,6 +7,7 @@ const {
   saveAttendance,
   updateMemberCommunion,
   getAttendanceSummary,
+  getAttendanceLeaderboard,
 } = require("../controllers/attendanceController");
 
 const authMiddleware = require("../middleware/authMiddleware");
@@ -42,6 +43,7 @@ router.post("/logs", async (req, res) => {
 router.get("/", getAttendance);
 
 router.get("/summary", getAttendanceSummary);
+router.get("/leaderboard", getAttendanceLeaderboard);
 
 // Save one member's status immediately.
 router.patch("/member", updateMemberAttendance);

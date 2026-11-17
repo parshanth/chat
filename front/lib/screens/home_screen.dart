@@ -207,6 +207,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         .then((_) => _celebrationsKey.currentState?.refresh());
   }
 
+  void _openCelebrations() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: _C.background,
+          appBar: AppBar(
+            title: Text('Celebrations', style: _T.title(20)),
+            backgroundColor: _C.background,
+            foregroundColor: _C.textPrimary,
+          ),
+          body: SafeArea(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Celebrations(key: _celebrationsKey),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Top bar now only holds the logout button (icon and name were removed).
   Widget _topBar() {
     return Row(
@@ -321,7 +348,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _row({
+  Widget _dashboardRow({
     required IconData icon,
     required String title,
     required String subtitle,
@@ -368,7 +395,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _secondaryGroup() {
+  Widget _dashboardGroup() {
+    const divider = Divider(height: 1, thickness: 1, color: _C.border);
     return Material(
       color: _C.surface,
       clipBehavior: Clip.antiAlias,
@@ -378,18 +406,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       child: Column(
         children: [
-          _row(
+          _dashboardRow(
             icon: Icons.analytics_outlined,
             title: 'Attendance Summary',
             subtitle: 'View weekly records and member history',
             onTap: _openSummary,
           ),
-          const Divider(height: 1, thickness: 1, color: _C.border),
-          _row(
+          divider,
+          _dashboardRow(
             icon: Icons.people_alt_outlined,
             title: 'Member Management',
             subtitle: 'Add, search, edit and manage members',
             onTap: _openMembers,
+          ),
+          divider,
+          _dashboardRow(
+            icon: Icons.history_rounded,
+            title: 'Activity Logs',
+            subtitle: 'View attendance changes',
+            onTap: () => openActivityLogs(context),
+          ),
+          divider,
+          _dashboardRow(
+            icon: Icons.celebration_outlined,
+            title: 'Celebrations',
+            subtitle: 'Birthdays and wedding anniversaries',
+            onTap: _openCelebrations,
           ),
         ],
       ),
@@ -408,43 +450,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           const SizedBox(height: 32),
           Text('REPORTS AND PEOPLE', style: _T.meta()),
           const SizedBox(height: 12),
-          _secondaryGroup(),
-          _row(
-            icon: Icons.history_rounded,
-            title: 'Activity logs',
-            subtitle: 'View attendance changes',
-            onTap: () => openActivityLogs(context),
-          ),
-          const SizedBox(height: 32),
-          _row(
-            icon: Icons.celebration_outlined,
-            title: 'Celebrations',
-            subtitle: 'Birthdays and wedding anniversaries',
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => Scaffold(
-                  backgroundColor: _C.background,
-                  appBar: AppBar(
-                    title: Text('Celebrations', style: _T.title(20)),
-                    backgroundColor: _C.background,
-                    foregroundColor: _C.textPrimary,
-                  ),
-                  body: SafeArea(
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 600),
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(24),
-                          child: Celebrations(key: _celebrationsKey),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          _dashboardGroup(),
         ],
       ),
     );

@@ -9,6 +9,7 @@ import '../utils/attendance_chart_data.dart';
 import 'members_screen.dart';
 
 part 'attendance_details_screen.dart';
+part 'attendance_leaderboard_screen.dart';
 
 // ---------------------------------------------------------------------------
 // Design tokens. Same values as the Add Attendance screen; move both copies
@@ -810,6 +811,19 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
                   _weekSection(),
                   const SizedBox(height: 32),
                   _reportsCard(),
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    style: _accentButton(),
+                    icon: const Icon(Icons.leaderboard_rounded),
+                    label: const Text('Attendance leaderboard'),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => AttendanceLeaderboardScreen(
+                          year: _selectedYear,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -967,7 +981,8 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
         const SizedBox(height: 22),
         _PresentSection(
           key: ValueKey('present-$date'),
-          members: _stats.present.map(_summaryMemberName).toList(),
+          members: _stats.present,
+          onOpen: _openMemberAttendanceDetails,
         ),
         if (_stats.communionPresent.isNotEmpty ||
             _stats.communionAbsent.isNotEmpty) ...[
@@ -999,7 +1014,8 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
           _PresentSection(
             key: ValueKey('communion-present-$date'),
             title: 'Communion presentees',
-            members: _stats.communionPresent.map(_summaryMemberName).toList(),
+            members: _stats.communionPresent,
+            onOpen: _openMemberAttendanceDetails,
           ),
         ],
       ],
@@ -1216,10 +1232,12 @@ class _PresentSection extends StatefulWidget {
   const _PresentSection({
     super.key,
     required this.members,
+    required this.onOpen,
     this.title = 'Present',
   });
 
-  final List<String> members;
+  final List<_Json> members;
+  final ValueChanged<_Json> onOpen;
   final String title;
 
   @override
@@ -1305,7 +1323,11 @@ class _PresentSectionState extends State<_PresentSection> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        for (final name in members) _PresentChip(name: name),
+                        for (final member in members)
+                          _PresentChip(
+                            name: _summaryMemberName(member),
+                            onTap: () => widget.onOpen(member),
+                          ),
                       ],
                     ),
                   )
@@ -1318,45 +1340,53 @@ class _PresentSectionState extends State<_PresentSection> {
 }
 
 class _PresentChip extends StatelessWidget {
-  const _PresentChip({required this.name});
+  const _PresentChip({required this.name, required this.onTap});
 
   final String name;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
-      decoration: BoxDecoration(
-        color: _C.success.withValues(alpha: 0.08),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: _C.success.withValues(alpha: 0.22)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 26,
-            height: 26,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _C.success.withValues(alpha: 0.18),
-              shape: BoxShape.circle,
-            ),
-            child: Text(
-              _initials(name),
-              style: _T.display(10, color: _C.success, letterSpacing: 0.2),
-            ),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
+          decoration: BoxDecoration(
+            color: _C.success.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: _C.success.withValues(alpha: 0.22)),
           ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _T.body(13, weight: FontWeight.w600, color: _C.text),
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 26,
+                height: 26,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: _C.success.withValues(alpha: 0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  _initials(name),
+                  style: _T.display(10, color: _C.success, letterSpacing: 0.2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _T.body(13, weight: FontWeight.w600, color: _C.text),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
